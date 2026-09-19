@@ -3,6 +3,7 @@ package com.htmltoapk.main;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -13,6 +14,7 @@ import android.os.Environment;
 import android.view.KeyEvent;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -27,14 +29,22 @@ import android.widget.Toast;
  * that downloads the built APK via the system DownloadManager and
  * triggers the system installer on completion.
  *
+ * Also uses FilePickerWebChromeClient (a NAMED class, not anonymous)
+ * to handle <input type="file"> clicks — without this, tapping
+ * "Pick HTML File" does nothing because WebView doesn't open the
+ * system file picker by default.
+ *
  * Pure-Android (no AndroidX) — works on API 24+.
  */
 public class MainActivity extends Activity {
+
+    public static final int FILE_CHOOSER_REQUEST = 1001;
 
     private WebView webView;
     private long pendingDownloadId = -1;
     private String pendingDownloadName = "";
     private ApkDownloadReceiver receiver;
+    private ValueCallback<Uri[]> filePathCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,10 +73,73 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new HtmlToApkBridge(this), "AndroidBridge");
 
         webView.setWebViewClient(new HtmlToApkWebViewClient(BuildConfig.BACKEND_URL));
-        webView.setWebChromeClient(new WebChromeClient());
+
+        // Custom WebChromeClient that handles <input type="file"> requests
+        // (named class — anonymous classes crash d8 8.2.2)
+        webView.setWebChromeClient(new FilePickerWebChromeClient(this));
 
         // Load the bundled UI from assets
         webView.loadUrl("file:///android_asset/webapp/index.html");
+    }
+
+    /**
+     * Called by FilePickerWebChromeClient to register the callback
+     * that will receive the picked file URI.
+     */
+    public void setFilePathCallback(ValueCallback<Uri[]> callback) {
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+        }
+        filePathCallback = callback;
+    }
+
+    /**
+     * Receive the result of the file picker launched from onShowFileChooser().
+     * Forward the chosen Uri back to the WebView via the filePathCallback.
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_REQUEST) {
+            if (filePathCallback == null) {
+                super.onActivityResult(requestCode, resultCode, data);
+                return;
+            }
+
+            Uri[] results = null;
+            if (resultCode == Activity.RESULT_OK) {
+                if (data != null) {
+                    if (data.getData() != null) {
+                        results = new Uri[]{data.getData()};
+                    } else if (data.getClipData() != null) {
+                        ClipData clip = data.getClipData();
+                        int count = clip.getItemCount();
+                        results = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            results[i] = clip.getItemAt(i).getUri();
+                        }
+                    }
+                }
+            }
+
+            // Take persistent permission so we can read the file later
+            if (results != null) {
+                for (int i = 0; i < results.length; i++) {
+                    try {
+                        getContentResolver().takePersistableUriPermission(
+                            results[i],
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        );
+                    } catch (Exception ignored) {
+                        // Not all URIs are persistable — that's OK
+                    }
+                }
+            }
+
+            filePathCallback.onReceiveValue(results);
+            filePathCallback = null;
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
     }
 
     /**
@@ -164,6 +237,10 @@ public class MainActivity extends Activity {
         if (receiver != null) {
             try { unregisterReceiver(receiver); } catch (Exception ignored) {}
             receiver = null;
+        }
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
         }
         if (webView != null) {
             ((android.view.ViewGroup) webView.getParent()).removeView(webView);
