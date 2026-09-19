@@ -138,7 +138,7 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
   </div>
   <div style="font-size:10px;color:var(--fg3);text-align:right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.1.0</div>
+    <div id="versionTag">v1.2.0</div>
   </div>
 </div>
 
@@ -149,9 +149,10 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
 
 <div class="card" id="pickCard">
   <h3>① Pick HTML File <span class="badge" id="fileBadge">none</span></h3>
-  <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+  <div class="file-drop" id="fileDrop">
     <div class="icon">📄</div>
     <div class="label">Tap to choose an <b>.html</b> file</div>
+    <div style="margin-top:6px;font-size:10px;color:var(--fg3)">Opens Android file picker</div>
   </div>
   <input type="file" id="fileInput" accept=".html,.htm,text/html" style="display:none">
   <div class="file-info" id="fileInfo">
@@ -271,6 +272,15 @@ async function checkHealth() {
 // ─── file picker ───────────────────────────────────────────────────────────
 function setupFilePicker() {
   const drop = $("fileDrop"), input = $("fileInput");
+
+  // Click anywhere on the drop zone → trigger the hidden <input type="file">
+  // IMPORTANT: on Android WebView, this triggers WebChromeClient.onShowFileChooser()
+  // which we override in MainActivity.java to launch the system file picker.
+  drop.addEventListener("click", (e) => {
+    e.preventDefault();
+    input.click();
+  });
+
   ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {
     e.preventDefault(); drop.classList.add("over");
   }));
@@ -282,7 +292,10 @@ function setupFilePicker() {
     if (f) handleFile(f);
   });
   input.addEventListener("change", e => {
-    if (e.target.files[0]) handleFile(e.target.files[0]);
+    const files = e.target.files;
+    if (files && files[0]) handleFile(files[0]);
+    // Reset the input so the same file can be picked again later
+    e.target.value = "";
   });
 }
 
@@ -296,7 +309,19 @@ async function handleFile(file) {
   $("fileName").textContent = file.name;
   $("fileSize").textContent = fmtSize(file.size);
 
-  const text = await file.text();
+  // Read file as text — works on WebView with file:// or content:// URIs
+  let text = "";
+  try {
+    text = await file.text();
+  } catch (e) {
+    // Fallback: use FileReader
+    text = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
   STATE.htmlContent = text;
 
   const tm = text.match(/<title[^>]*>([^<]*)<\/title>/i);
