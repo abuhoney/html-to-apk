@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    container_name: html-to-apk
+    ports:
+      - "10000:10000"
+    environment:
+      - PORT=10000
+    volumes:
+      - apk-output:/app/_output
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:10000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  apk-output:
