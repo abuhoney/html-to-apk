@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.htmltoapk.main'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.htmltoapk.main"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        // Inject the backend URL as a BuildConfig field.
+        // Override at build time via -PbackendUrl=https://example.com
+        buildConfigField "String", "BACKEND_URL",
+            "\"${project.findProperty('backendUrl') ?: 'https://html-to-apk.onrender.com'}\""
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
