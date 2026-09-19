@@ -1,0 +1,15 @@
+{
+  "name": "html-to-apk",
+  "version": "1.0.0",
+  "description": "Cloud build service: convert any HTML to a real installable Android APK.",
+  "repository": "self",
+  "license": "MIT",
+  "scripts": {
+    "start": "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 600",
+    "dev": "python app.py"
+  },
+  "env": {
+    "PORT": {"description": "Port to listen on", "value": "10000"},
+    "JAVA_HOME": {"description": "JDK root (auto-downloaded if missing)", "value": ""}
+  }
+}
