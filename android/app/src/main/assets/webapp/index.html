@@ -39,18 +39,43 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
 .card h3 .badge{background:var(--surface2);color:var(--fg2);padding:2px 7px;border-radius:10px;
   font-size:10px;text-transform:none;letter-spacing:0;font-weight:500}
 
-/* Function grid */
-.fn-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.fn-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:14px 10px;cursor:pointer;transition:all .15s;text-align:center}
-.fn-card:hover,.fn-card:active{border-color:var(--accent);background:rgba(88,166,255,.08);transform:translateY(-1px)}
-.fn-card.disabled{opacity:.5;cursor:not-allowed;pointer-events:none}
-.fn-icon{font-size:24px;margin-bottom:6px}
-.fn-name{color:var(--fg);font-size:13px;font-weight:600}
-.fn-desc{color:var(--fg3);font-size:10px;margin-top:4px;line-height:1.4}
-.fn-pkg{color:var(--fg3);font-size:9px;font-family:var(--mono);margin-top:3px;word-break:break-all}
+/* File picker */
+.file-drop{border:2px dashed var(--surface3);border-radius:var(--radius-sm);padding:28px 16px;
+  text-align:center;cursor:pointer;transition:all .15s;background:var(--bg)}
+.file-drop:hover,.file-drop.over{border-color:var(--accent);background:rgba(88,166,255,.05)}
+.file-drop .icon{font-size:32px;color:var(--fg3);margin-bottom:8px}
+.file-drop .label{color:var(--fg2);font-size:13px}
+.file-drop .label b{color:var(--accent)}
+.file-info{display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px 12px;margin-top:10px;font-size:12px}
+.file-info.show{display:block}
+.file-info .row{display:flex;justify-content:space-between;align-items:center;margin:2px 0}
+.file-info .row .k{color:var(--fg2)}
+.file-info .row .v{color:var(--fg);font-family:var(--mono);font-size:11px}
+.file-info .preview{margin-top:8px;padding:8px;background:var(--bg);border-radius:4px;
+  max-height:120px;overflow:auto;font-family:var(--mono);font-size:10px;color:var(--fg3);
+  white-space:pre-wrap;word-break:break-all;border:1px solid var(--border)}
 
-/* Build progress */
+/* Form fields */
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;color:var(--fg2);margin-bottom:4px;font-weight:500}
+.field input{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit}
+.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.1)}
+
+/* Build button */
+.btn{width:100%;padding:13px 16px;border:none;border-radius:var(--radius-sm);
+  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,#238636,#2ea043);color:#fff}
+.btn-primary:hover{background:linear-gradient(135deg,#2ea043,#3fb950)}
+.btn-primary:disabled{background:var(--surface3);color:var(--fg3);cursor:not-allowed}
+.btn-alt{background:var(--surface2);color:var(--fg);border:1px solid var(--border)}
+.btn-alt:hover{background:var(--surface3)}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+
+/* Progress */
 .progress{display:none;margin-top:10px}
 .progress.show{display:block}
 .progress-track{background:var(--surface3);height:6px;border-radius:3px;overflow:hidden}
@@ -91,16 +116,6 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
 .history-item .dl:hover{background:var(--accent);color:#fff}
 .history-empty{color:var(--fg3);font-size:12px;text-align:center;padding:20px;font-style:italic}
 
-/* Buttons */
-.btn{width:100%;padding:13px 16px;border:none;border-radius:var(--radius-sm);
-  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;
-  display:flex;align-items:center;justify-content:center;gap:8px}
-.btn-primary{background:linear-gradient(135deg,#238636,#2ea043);color:#fff}
-.btn-primary:hover{background:linear-gradient(135deg,#2ea043,#3fb950)}
-.btn-primary:disabled{background:var(--surface3);color:var(--fg3);cursor:not-allowed}
-.btn-alt{background:var(--surface2);color:var(--fg);border:1px solid var(--border)}
-.btn-alt:hover{background:var(--surface3)}
-
 /* Toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
   background:var(--surface2);color:var(--fg);border:1px solid var(--border);
@@ -123,7 +138,7 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
   </div>
   <div style="font-size:10px;color:var(--fg3);text-align:right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.0.0</div>
+    <div id="versionTag">v1.1.0</div>
   </div>
 </div>
 
@@ -132,35 +147,41 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
   <div style="font-size:11px;color:var(--fg2);font-family:var(--mono);word-break:break-all;background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--border)" id="backendUrlDisplay">Loading…</div>
 </div>
 
-<div class="card">
-  <h3>① Pick a Function <span class="badge" id="fnCount">loading…</span></h3>
-  <div class="fn-grid" id="fnGrid">
-    <div class="fn-card disabled"><div class="fn-icon">⏳</div><div class="fn-name">Loading…</div></div>
+<div class="card" id="pickCard">
+  <h3>① Pick HTML File <span class="badge" id="fileBadge">none</span></h3>
+  <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+    <div class="icon">📄</div>
+    <div class="label">Tap to choose an <b>.html</b> file</div>
+  </div>
+  <input type="file" id="fileInput" accept=".html,.htm,text/html" style="display:none">
+  <div class="file-info" id="fileInfo">
+    <div class="row"><span class="k">Name</span><span class="v" id="fileName"></span></div>
+    <div class="row"><span class="k">Size</span><span class="v" id="fileSize"></span></div>
+    <div class="row"><span class="k">Detected title</span><span class="v" id="fileTitle"></span></div>
+    <pre class="preview" id="filePreview"></pre>
   </div>
 </div>
 
 <div class="card">
-  <h3>② Build Settings</h3>
-  <div class="field" style="margin-bottom:8px">
-    <label style="display:block;font-size:11px;color:var(--fg2);margin-bottom:4px;font-weight:500" for="appName">App name (optional, defaults to function name)</label>
-    <input type="text" id="appName" placeholder="e.g., My Calculator" maxlength="30"
-      style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:13px;font-family:inherit">
+  <h3>② Configure</h3>
+  <div class="field">
+    <label for="appName">App name (required)</label>
+    <input type="text" id="appName" placeholder="e.g., My Cool App" maxlength="30">
   </div>
   <div class="field">
-    <label style="display:block;font-size:11px;color:var(--fg2);margin-bottom:4px;font-weight:500" for="version">Version</label>
-    <input type="text" id="version" value="1.0.0" placeholder="1.0.0"
-      style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:13px;font-family:inherit">
+    <label for="version">Version</label>
+    <input type="text" id="version" value="1.0.0" placeholder="1.0.0">
   </div>
 </div>
 
 <div class="card">
   <h3>③ Build APK</h3>
   <button class="btn btn-primary" id="buildBtn" onclick="buildApk()" disabled>
-    <span id="buildBtnText">Select a function first</span>
+    <span id="buildBtnText">Pick HTML first</span>
   </button>
   <div class="progress" id="progress">
     <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
-    <div class="progress-text" id="progressText">Building…</div>
+    <div class="progress-text" id="progressText">Uploading…</div>
   </div>
   <div class="log" id="buildLog"></div>
 </div>
@@ -177,18 +198,17 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
 <div class="card">
   <h3>Build History <span class="badge" id="historyCount">0</span></h3>
   <div class="history" id="historyList">
-    <div class="history-empty">No APKs built yet — pick a function above to start.</div>
+    <div class="history-empty">No APKs built yet — pick an HTML file above to start.</div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// Backend URL — embedded at build time via BuildConfig.BACKEND_URL,
-// but can be overridden via localStorage (Settings screen).
+// Backend URL — embedded at build time via BuildConfig.BACKEND_URL
 const DEFAULT_BACKEND_URL = "https://html-to-apk-1789777001.onrender.com";
 let BACKEND_URL = localStorage.getItem("backendUrl") || window.BACKEND_URL || DEFAULT_BACKEND_URL;
-const STATE = { htmlContent: "", fileName: "", selectedFunction: null, lastResult: null, functions: [] };
+const STATE = { htmlContent: "", fileName: "", lastResult: null };
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
@@ -226,7 +246,7 @@ async function checkHealth() {
     const d = await r.json();
     if (d.status === "ok") {
       $("healthDot").className = "health-dot";
-      $("healthText").textContent = "Backend online · " + d.functions_count + " functions · v" + d.version;
+      $("healthText").textContent = "Backend online · v" + d.version;
       $("backendBadge").textContent = "online";
       $("backendBadge").style.background = "var(--green)";
       $("backendBadge").style.color = "#fff";
@@ -240,7 +260,7 @@ async function checkHealth() {
     return d;
   } catch (e) {
     $("healthDot").className = "health-dot bad";
-    $("healthText").textContent = "Backend offline — tap ⚙ to edit URL";
+    $("healthText").textContent = "Backend offline";
     $("backendBadge").textContent = "offline";
     $("backendBadge").style.background = "var(--red)";
     $("backendBadge").style.color = "#fff";
@@ -248,88 +268,94 @@ async function checkHealth() {
   }
 }
 
-// ─── function picker ──────────────────────────────────────────────────────
-const FN_ICONS = {
-  calculator: "🧮",
-  notes: "📝",
-  todo_list: "✅",
-  qr_generator: "📱",
-  weather: "🌤️",
-};
+// ─── file picker ───────────────────────────────────────────────────────────
+function setupFilePicker() {
+  const drop = $("fileDrop"), input = $("fileInput");
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add("over");
+  }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove("over");
+  }));
+  drop.addEventListener("drop", e => {
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  input.addEventListener("change", e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+}
 
-async function loadFunctions() {
-  try {
-    const r = await fetch(BACKEND_URL + "/api/functions");
-    const d = await r.json();
-    STATE.functions = d.functions || [];
-    $("fnCount").textContent = STATE.functions.length + " available";
-    if (STATE.functions.length === 0) {
-      $("fnGrid").innerHTML = '<div class="fn-card disabled" style="grid-column:1/-1"><div class="fn-icon">🚫</div><div class="fn-name">No functions available</div></div>';
-      return;
-    }
-    $("fnGrid").innerHTML = STATE.functions.map(f => {
-      const icon = FN_ICONS[f.name] || "📦";
-      return `<div class="fn-card" onclick="selectFunction('${f.name}')">
-        <div class="fn-icon">${icon}</div>
-        <div class="fn-name">${escapeHtml(f.manifest.name)}</div>
-        <div class="fn-desc">${escapeHtml(f.manifest.description || "")}</div>
-        <div class="fn-pkg">${escapeHtml(f.manifest.package)}</div>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    $("fnGrid").innerHTML = '<div class="fn-card disabled" style="grid-column:1/-1"><div class="fn-icon">📡</div><div class="fn-name">Cannot reach backend</div><div class="fn-desc">Check the backend URL</div></div>';
+async function handleFile(file) {
+  if (!file) return;
+  if (!/\.(html?|htm)$/i.test(file.name)) {
+    toast("Please pick an .html file", "err"); return;
   }
+  STATE.fileName = file.name;
+  $("fileBadge").textContent = file.name;
+  $("fileName").textContent = file.name;
+  $("fileSize").textContent = fmtSize(file.size);
+
+  const text = await file.text();
+  STATE.htmlContent = text;
+
+  const tm = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+  const title = tm ? tm[1].trim() : "";
+  $("fileTitle").textContent = title || "(no <title> found)";
+  $("filePreview").textContent = text.slice(0, 500) + (text.length > 500 ? "…" : "");
+
+  $("fileInfo").classList.add("show");
+
+  if (!$("appName").value) {
+    $("appName").value = title || file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
+  }
+  validate();
 }
 
-function selectFunction(name) {
-  STATE.selectedFunction = name;
-  document.querySelectorAll(".fn-card").forEach(c => c.classList.remove("disabled"));
-  const fn = STATE.functions.find(f => f.name === name);
-  if (!fn) return;
-  $("appName").value = fn.manifest.name;
-  $("buildBtn").disabled = false;
-  $("buildBtnText").textContent = "Build " + fn.manifest.name + " APK";
-  toast("Selected: " + fn.manifest.name, "ok");
+function validate() {
+  const ok = STATE.htmlContent && $("appName").value.trim().length > 0;
+  $("buildBtn").disabled = !ok;
+  if (ok) $("buildBtnText").textContent = "Build APK";
 }
+
+$("appName").addEventListener("input", validate);
 
 // ─── build ──────────────────────────────────────────────────────────────────
 async function buildApk() {
-  if (!STATE.selectedFunction) { toast("Pick a function first", "err"); return; }
-  const appName = $("appName").value.trim() || STATE.functions.find(f => f.name === STATE.selectedFunction)?.manifest.name;
+  if (!STATE.htmlContent) { toast("Pick an HTML file first", "err"); return; }
+  const appName = $("appName").value.trim();
+  if (!appName) { toast("App name required", "err"); return; }
   const ver = $("version").value.trim() || "1.0.0";
 
   $("buildBtn").disabled = true;
   $("buildBtnText").textContent = "Building…";
   $("resultCard").classList.remove("show");
   $("buildLog").textContent = "";
-  setProgress(5, "Sending build request…");
-  log("→ POST " + BACKEND_URL + "/api/build-apk");
-  log("  function: " + STATE.selectedFunction);
-  log("  app_name: " + appName);
+  setProgress(5, "Uploading HTML…");
+  log("→ POST " + BACKEND_URL + "/api/build-apk-from-html");
 
   try {
-    setProgress(15, "Server is compiling APK (aapt2 + javac + d8 + apksigner)…");
-    log("⏳ Server is building… (this can take ~40s on free tier)");
+    const fd = new FormData();
+    const blob = new Blob([STATE.htmlContent], { type: "text/html" });
+    fd.append("html_file", blob, STATE.fileName || "app.html");
+    fd.append("app_name", appName);
+    fd.append("version_name", ver);
 
-    const r = await fetch(BACKEND_URL + "/api/build-apk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        function: STATE.selectedFunction,
-        app_name: appName,
-        version_name: ver,
-      }),
+    setProgress(15, "Server is compiling (aapt2 + javac + d8 + zipalign + apksigner)…");
+    log("✓ Upload complete, server building (~50s on free tier)…");
+
+    const r = await fetch(BACKEND_URL + "/api/build-apk-from-html", {
+      method: "POST", body: fd
     });
     const d = await r.json();
     setProgress(95, "Finalizing…");
 
     if (d.success) {
       STATE.lastResult = d;
-      showResult(d, true, STATE.selectedFunction);
+      showResult(d, true);
       log("✅ Built in " + (d.duration_sec || "?") + "s · " + fmtSize(d.apk_size));
       setProgress(100, "Done!");
-      setTimeout(() => setProgress(null), 800);
-      refreshHistory();
+      setTimeout(() => setProgress(null), 1000);
       toast("✓ APK built successfully", "ok");
     } else {
       log("✗ " + (d.error || "build failed"));
@@ -345,39 +371,31 @@ async function buildApk() {
   }
 
   $("buildBtn").disabled = false;
-  $("buildBtnText").textContent = STATE.selectedFunction
-    ? "Build " + (STATE.functions.find(f => f.name === STATE.selectedFunction)?.manifest.name || "APK")
-    : "Select a function first";
+  $("buildBtnText").textContent = "Build APK";
 }
 
-function showResult(d, ok, fnName) {
+function showResult(d, ok) {
   const card = $("resultCard");
   card.classList.add("show");
   card.classList.toggle("success", ok);
   card.classList.toggle("error", !ok);
   $("resultTitle").textContent = ok ? "✓ Build Successful" : "✗ Build Failed";
   if (ok) {
-    // apk-generator-system returns the path inside the APK on server, but we need the download URL.
-    // The download endpoint is: /download/<function>/<filename>
-    const fn = fnName || d.function;
-    const fileName = (d.apk_path || "").split("/").pop() || (d.manifest?.app_name + ".apk");
-    const dlUrl = BACKEND_URL + "/download/" + fn + "/" + encodeURIComponent(fileName);
-    STATE.lastResult.apk_url = dlUrl;
-    STATE.lastResult.apk_name = fileName;
     $("resultMeta").innerHTML =
-      '<div>App: <b>' + escapeHtml(d.manifest?.app_name || "") + '</b></div>' +
+      '<div>App: <b>' + escapeHtml(d.manifest?.app_name || d.app_name || "") + '</b></div>' +
       '<div>Package: <b style="color:var(--accent)">' + escapeHtml(d.manifest?.package || "") + '</b></div>' +
-      '<div>Version: <b>' + escapeHtml(d.manifest?.version_name || "") + ' (code ' + (d.manifest?.version_code || 1) + ')</b></div>' +
+      '<div>Version: <b>' + escapeHtml(d.manifest?.version_name || "1.0.0") + '</b></div>' +
       '<div>Size: <b>' + fmtSize(d.apk_size) + '</b> · Built in <b>' + (d.duration_sec?.toFixed(1) || "?") + 's</b></div>' +
       '<div>Mode: <b>' + escapeHtml(d.build_mode || "") + '</b></div>';
   } else {
-    $("resultMeta").innerHTML = '<div style="color:var(--red);font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all">' + escapeHtml(d.error || "Unknown error") + '</div>';
+    $("resultMeta").innerHTML = '<div style="color:var(--red);font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all">' + escapeHtml(d.error || "Unknown error") + '</div>' +
+      (d.traceback ? '<details style="margin-top:8px"><summary style="color:var(--fg3);font-size:11px;cursor:pointer">Stack trace</summary><pre style="margin-top:6px;font-size:10px;color:var(--fg3);white-space:pre-wrap">' + escapeHtml(d.traceback) + '</pre></details>' : '');
   }
 }
 
 function downloadResult() {
   if (!STATE.lastResult || !STATE.lastResult.success) return;
-  const url = STATE.lastResult.apk_url;
+  const url = BACKEND_URL + STATE.lastResult.apk_url;
   const name = STATE.lastResult.apk_name;
   if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
     AndroidBridge.downloadApk(url, name);
@@ -395,49 +413,9 @@ function resetBuilder() {
   setProgress(null);
 }
 
-// ─── history ────────────────────────────────────────────────────────────────
-async function refreshHistory() {
-  try {
-    const r = await fetch(BACKEND_URL + "/api/apks");
-    const d = await r.json();
-    const apks = d.apks || [];
-    $("historyCount").textContent = apks.length;
-    $("buildsCount").textContent = apks.length + " builds";
-    if (apks.length === 0) {
-      $("historyList").innerHTML = '<div class="history-empty">No APKs built yet — pick a function above to start.</div>';
-      return;
-    }
-    $("historyList").innerHTML = apks.slice().reverse().map(a => {
-      const dlUrl = BACKEND_URL + "/download/" + a.function + "/" + encodeURIComponent(a.name);
-      return '<div class="history-item">' +
-        '<div class="info">' +
-          '<div class="name">' + escapeHtml(a.name) + '</div>' +
-          '<div class="meta">Function <span class="pkg">' + escapeHtml(a.function) + '</span> · ' + fmtSize(a.size) + '</div>' +
-        '</div>' +
-        '<button class="dl" onclick="downloadHistory(\'' + dlUrl.replace(/'/g, "\\'") + '\', \'' + escapeHtml(a.name).replace(/'/g, "\\'") + '\')">Download</button>' +
-      '</div>';
-    }).join("");
-  } catch (e) {
-    console.warn("history fetch failed", e);
-  }
-}
-
-function downloadHistory(url, name) {
-  if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
-    AndroidBridge.downloadApk(url, name);
-  } else {
-    const a = document.createElement("a");
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-  }
-  toast("Downloading " + name, "ok");
-}
-
 // ─── init ──────────────────────────────────────────────────────────────────
-checkHealth().then(() => {
-  loadFunctions();
-  refreshHistory();
-});
+setupFilePicker();
+checkHealth();
 setInterval(checkHealth, 30000);
 </script>
 </body>
