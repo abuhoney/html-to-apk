@@ -282,7 +282,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.2.1</div>
+    <div id="versionTag">v1.2.2</div>
   </div>
 </div>
 
@@ -323,7 +323,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 
 <div class="card">
   <h3>③ Build APK</h3>
-  <button class="btn btn-primary" id="buildBtn" disabled>
+  <button class="btn btn-primary" id="buildBtn" onclick="buildApk()" disabled>
     <span id="buildBtnText">Pick HTML first</span>
   </button>
   <div class="progress" id="progress">
@@ -449,36 +449,60 @@ async function handleFile(file) {
   if (!/\.(html?|htm)$/i.test(file.name)) {
     toast("Please pick an .html file", "err"); return;
   }
+
+  // 1. Update UI immediately so the user sees the file was picked,
+  //    and ENABLE the Build button right away (don't wait for text() to resolve).
   STATE.fileName = file.name;
+  STATE.fileObj = file;
   $("fileBadge").textContent = file.name.length > 25
     ? file.name.slice(0, 22) + "…" : file.name;
   $("fileName").textContent = file.name;
   $("fileSize").textContent = fmtSize(file.size);
-
-  let text = "";
-  try {
-    text = await file.text();
-  } catch (e) {
-    text = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result || "");
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(file);
-    });
-  }
-  STATE.htmlContent = text;
-
-  const tm = text.match(/<title[^>]*>([^<]*)<\/title>/i);
-  const title = tm ? tm[1].trim() : "";
-  $("fileTitle").textContent = title || "(no <title> found)";
-  $("filePreview").textContent = text.slice(0, 600) + (text.length > 600 ? "\n…" : "");
-
   $("fileInfo").classList.add("show");
 
+  // Auto-fill app name from filename (since we don't have title yet)
   if (!$("appName").value) {
-    $("appName").value = title || file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
+    const baseName = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
+    $("appName").value = baseName.slice(0, 30);
   }
-  validate();
+
+  // Enable the Build button IMMEDIATELY — content reading happens lazily
+  $("buildBtn").disabled = false;
+  $("buildBtnText").textContent = "Build APK";
+
+  // 2. Read the file content in the background. Use FileReader as the primary
+  //    method because Android WebView's File.text() implementation sometimes
+  //    hangs or fails silently. FileReader is more reliably supported.
+  $("fileTitle").textContent = "(reading…)";
+  $("filePreview").textContent = "Reading file content…";
+
+  try {
+    const text = await readFileAsText(file);
+    STATE.htmlContent = text;
+    STATE.fileObj = null; // free the File reference
+
+    const tm = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const title = tm ? tm[1].trim() : "";
+    $("fileTitle").textContent = title || "(no <title> found)";
+    $("filePreview").textContent = text.slice(0, 600) + (text.length > 600 ? "\n…" : "");
+
+    // If title was found and the user hasn't manually edited the app name,
+    // update it with the title (more descriptive than filename)
+    const currentName = $("appName").value;
+    const fileNameGuess = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
+    if (title && (currentName === fileNameGuess || !currentName)) {
+      $("appName").value = title.slice(0, 30);
+    }
+  } catch (err) {
+    console.error("File read failed:", err);
+    $("fileTitle").textContent = "(read failed)";
+    $("filePreview").textContent = "Error reading file: " + err.message + "\n\nYou can still try to Build — the server may handle the file directly.";
+    // Keep the button enabled — the buildApk() function will try to read the file again
+    // using FormData directly (which uses the File object, not the pre-read text).
+    STATE.htmlContent = "";
+    STATE.fileObj = file;
+    toast("File read warning — try Build anyway", "err");
+  }
 
   // Smooth-scroll to Configure card
   setTimeout(() => {
@@ -486,39 +510,99 @@ async function handleFile(file) {
   }, 200);
 }
 
+// Robust file reader — tries FileReader first (most compatible with WebView),
+// then falls back to file.text() (Blob.text() method).
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    // Method 1: FileReader (works everywhere, including old WebView)
+    if (typeof FileReader !== "undefined") {
+      const reader = new FileReader();
+      const timeoutId = setTimeout(() => {
+        reader.abort();
+        reject(new Error("FileReader timed out after 10s"));
+      }, 10000);
+      reader.onload = () => {
+        clearTimeout(timeoutId);
+        resolve(reader.result || "");
+      };
+      reader.onerror = () => {
+        clearTimeout(timeoutId);
+        // Try fallback method
+        fallbackText();
+      };
+      reader.readAsText(file);
+      return;
+    }
+    // No FileReader — go straight to fallback
+    fallbackText();
+  });
+
+  function fallbackText() {
+    if (file.text && typeof file.text === "function") {
+      file.text().then(resolve, reject);
+    } else {
+      reject(new Error("No file reading API available"));
+    }
+  }
+}
+
 function validate() {
-  const ok = STATE.htmlContent && $("appName").value.trim().length > 0;
-  $("buildBtn").disabled = !ok;
-  if (ok) $("buildBtnText").textContent = "Build APK";
+  // Build button is enabled if EITHER:
+  //   - We have HTML content already read, OR
+  //   - We have a File object picked (buildApk will read it via FormData)
+  // AND the app name is non-empty.
+  const hasInput = (STATE.htmlContent || STATE.fileObj) && $("appName").value.trim().length > 0;
+  $("buildBtn").disabled = !hasInput;
+  if (hasInput) $("buildBtnText").textContent = "Build APK";
+  else if (!STATE.htmlContent && !STATE.fileObj) $("buildBtnText").textContent = "Pick HTML first";
+  else $("buildBtnText").textContent = "Enter app name";
 }
 
 $("appName").addEventListener("input", validate);
 
 // ─── build ──────────────────────────────────────────────────────────────────
 async function buildApk() {
-  if (!STATE.htmlContent) { toast("Pick an HTML file first", "err"); return; }
-  const appName = $("appName").value.trim();
-  if (!appName) { toast("App name required", "err"); return; }
+  // Need either pre-read HTML content OR a File object to send
+  if (!STATE.htmlContent && !STATE.fileObj) {
+    toast("Pick an HTML file first", "err");
+    return;
+  }
+  let appName = $("appName").value.trim();
+  if (!appName) {
+    toast("App name required", "err");
+    $("appName").focus();
+    return;
+  }
   const ver = $("version").value.trim() || "1.0.0";
 
   $("buildBtn").disabled = true;
   $("buildBtnText").textContent = "Building…";
   $("resultCard").classList.remove("show");
   $("buildLog").textContent = "";
-  setProgress(5, "Uploading HTML…");
+  setProgress(5, "Preparing upload…");
   log("→ POST " + BACKEND_URL + "/api/build-apk-from-html");
 
   try {
     const fd = new FormData();
-    const blob = new Blob([STATE.htmlContent], { type: "text/html" });
-    fd.append("html_file", blob, STATE.fileName || "app.html");
+
+    // If we have pre-read HTML, send it as a Blob.
+    // If we only have the File object (text reading failed), send the File directly.
+    if (STATE.htmlContent) {
+      const blob = new Blob([STATE.htmlContent], { type: "text/html" });
+      fd.append("html_file", blob, STATE.fileName || "app.html");
+      log("✓ Sending HTML content (" + fmtSize(STATE.htmlContent.length) + ")");
+    } else if (STATE.fileObj) {
+      fd.append("html_file", STATE.fileObj, STATE.fileObj.name);
+      log("✓ Sending File object (" + fmtSize(STATE.fileObj.size) + ")");
+    }
+
     fd.append("app_name", appName);
     fd.append("version_name", ver);
 
     setProgress(15, "Server is compiling (aapt2 + javac + d8 + zipalign + apksigner)…");
     log("✓ Upload complete, server building (~50s on free tier)…");
 
-    // Animate progress while waiting for server (fake-but-honest progress)
+    // Animate progress while waiting for server
     let fakePct = 20;
     const progressInterval = setInterval(() => {
       if (fakePct < 85) {
