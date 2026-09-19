@@ -1,0 +1,9 @@
+build_tools/*
+!build_tools/.gitkeep
+__pycache__/
+*.pyc
+_work/
+_output/
+jdk.tar.gz
+*.log
+.env
