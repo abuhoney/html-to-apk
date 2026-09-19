@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Build outputs
+_work/
+_output/
+_build_work/
+*.aligned.apk
+*.unsigned.apk
+tmp.apk
+tmp_aligned.apk
+
+# Secrets (kept private)
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# APKs (use the dedicated download/ folder instead)
+*.apk
+!download/html_to_apk.apk
