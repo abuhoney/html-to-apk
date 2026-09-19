@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0d1117">
 <title>HTML to APK</title>
 <style>
@@ -16,114 +16,256 @@
   --mono:'SF Mono',Consolas,Monaco,'Courier New',monospace;
   --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
 }
-html,body{height:100%;background:var(--bg);color:var(--fg);font-family:var(--font);
-  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width:720px;margin:0 auto;min-height:100vh;
-  display:flex;flex-direction:column;gap:14px;padding-bottom:24px}
+html{height:100%;scroll-behavior:smooth;overscroll-behavior-y:contain}
+body{
+  background:var(--bg);color:var(--fg);font-family:var(--font);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  max-width:720px;margin:0 auto;min-height:100vh;
+  display:flex;flex-direction:column;gap:12px;
+  padding-bottom:calc(env(safe-area-inset-bottom) + 24px);
+  overflow-x:hidden;
+}
+main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 
 /* Header */
-.header{display:flex;align-items:center;justify-content:space-between;padding:16px 4px 4px}
-.brand{display:flex;align-items:center;gap:10px}
-.logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#58a6ff,#bc8cff);
-  display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;font-weight:700}
-.title{font-size:17px;font-weight:600}
-.sub{font-size:11px;color:var(--fg2);margin-top:1px}
-.health-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px;
-  box-shadow:0 0 8px var(--green)}
-.health-dot.bad{background:var(--red);box-shadow:0 0 8px var(--red)}
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 12px 4px;gap:8px;position:sticky;top:0;
+  background:linear-gradient(180deg,var(--bg) 80%,transparent);
+  z-index:10;
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.logo{
+  width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,#58a6ff,#bc8cff);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;color:#fff;font-weight:700;
+  box-shadow:0 4px 12px rgba(88,166,255,.3);
+}
+.title-block{min-width:0;flex:1}
+.title{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:11px;color:var(--fg2);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.health-dot{width:8px;height:8px;border-radius:50%;background:var(--green);
+  display:inline-block;margin-right:4px;flex-shrink:0;
+  box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.health-dot.bad{background:var(--red);box-shadow:0 0 8px var(--red);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.header-right{text-align:right;font-size:10px;color:var(--fg3);flex-shrink:0;white-space:nowrap}
 
 /* Cards */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;overflow:hidden}
-.card h3{color:var(--accent);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
-  margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.card h3 .badge{background:var(--surface2);color:var(--fg2);padding:2px 7px;border-radius:10px;
-  font-size:10px;text-transform:none;letter-spacing:0;font-weight:500}
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px;overflow:hidden;
+  transition:border-color .15s;
+}
+.card h3{
+  color:var(--accent);font-size:12px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.5px;
+  margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.card h3 .badge{
+  background:var(--surface2);color:var(--fg2);padding:2px 8px;
+  border-radius:10px;font-size:10px;text-transform:none;
+  letter-spacing:0;font-weight:500;max-width:200px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* Backend URL display */
+.backend-url{
+  font-size:11px;color:var(--fg2);font-family:var(--mono);
+  word-break:break-all;background:var(--bg);padding:8px 10px;
+  border-radius:6px;border:1px solid var(--border);
+  overflow-x:auto;white-space:pre-wrap;max-height:60px;overflow-y:auto;
+}
 
 /* File picker */
-.file-drop{border:2px dashed var(--surface3);border-radius:var(--radius-sm);padding:28px 16px;
-  text-align:center;cursor:pointer;transition:all .15s;background:var(--bg)}
-.file-drop:hover,.file-drop.over{border-color:var(--accent);background:rgba(88,166,255,.05)}
-.file-drop .icon{font-size:32px;color:var(--fg3);margin-bottom:8px}
+.file-drop{
+  border:2px dashed var(--surface3);border-radius:var(--radius-sm);
+  padding:24px 16px;text-align:center;cursor:pointer;
+  transition:all .15s;background:var(--bg);
+  -webkit-user-select:none;user-select:none;
+}
+.file-drop:hover,.file-drop.over{
+  border-color:var(--accent);background:rgba(88,166,255,.05);
+}
+.file-drop .icon{font-size:36px;color:var(--fg3);margin-bottom:8px;line-height:1}
 .file-drop .label{color:var(--fg2);font-size:13px}
 .file-drop .label b{color:var(--accent)}
-.file-info{display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px 12px;margin-top:10px;font-size:12px}
-.file-info.show{display:block}
-.file-info .row{display:flex;justify-content:space-between;align-items:center;margin:2px 0}
-.file-info .row .k{color:var(--fg2)}
-.file-info .row .v{color:var(--fg);font-family:var(--mono);font-size:11px}
-.file-info .preview{margin-top:8px;padding:8px;background:var(--bg);border-radius:4px;
-  max-height:120px;overflow:auto;font-family:var(--mono);font-size:10px;color:var(--fg3);
-  white-space:pre-wrap;word-break:break-all;border:1px solid var(--border)}
+.file-drop .hint{margin-top:6px;font-size:10px;color:var(--fg3)}
+
+.file-info{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px;
+  font-size:12px;display:none;
+}
+.file-info.show{display:block;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.file-info .row{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  margin:3px 0;gap:8px;
+}
+.file-info .row .k{color:var(--fg2);flex-shrink:0;font-size:11px}
+.file-info .row .v{
+  color:var(--fg);font-family:var(--mono);font-size:11px;
+  text-align:right;word-break:break-all;overflow-wrap:break-word;
+  max-width:65%;
+}
+.file-info .preview{
+  margin-top:8px;padding:8px;background:var(--bg);border-radius:4px;
+  max-height:100px;overflow:auto;font-family:var(--mono);font-size:10px;
+  color:var(--fg3);white-space:pre-wrap;word-break:break-all;
+  border:1px solid var(--border);
+}
 
 /* Form fields */
 .field{margin-bottom:10px}
 .field label{display:block;font-size:11px;color:var(--fg2);margin-bottom:4px;font-weight:500}
-.field input{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit}
-.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.1)}
+.field input{
+  width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:11px 12px;font-size:13px;font-family:inherit;
+  transition:all .15s;
+}
+.field input:focus{
+  outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(88,166,255,.1);
+}
 
 /* Build button */
-.btn{width:100%;padding:13px 16px;border:none;border-radius:var(--radius-sm);
-  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;
-  display:flex;align-items:center;justify-content:center;gap:8px}
+.btn{
+  width:100%;padding:13px 16px;border:none;border-radius:var(--radius-sm);
+  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;
+  -webkit-user-select:none;user-select:none;
+}
+.btn:active{transform:scale(.98)}
 .btn-primary{background:linear-gradient(135deg,#238636,#2ea043);color:#fff}
 .btn-primary:hover{background:linear-gradient(135deg,#2ea043,#3fb950)}
-.btn-primary:disabled{background:var(--surface3);color:var(--fg3);cursor:not-allowed}
+.btn-primary:disabled{background:var(--surface3);color:var(--fg3);cursor:not-allowed;transform:none}
 .btn-alt{background:var(--surface2);color:var(--fg);border:1px solid var(--border)}
 .btn-alt:hover{background:var(--surface3)}
 .btn-row{display:flex;gap:8px}
-.btn-row .btn{flex:1}
+.btn-row .btn{flex:1;min-width:0}
 
 /* Progress */
-.progress{display:none;margin-top:10px}
-.progress.show{display:block}
-.progress-track{background:var(--surface3);height:6px;border-radius:3px;overflow:hidden}
-.progress-bar{background:linear-gradient(90deg,#58a6ff,#bc8cff);height:100%;width:0;
-  transition:width .3s;border-radius:3px}
-.progress-text{margin-top:6px;font-size:11px;color:var(--fg2);font-family:var(--mono)}
-.log{margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:8px;max-height:140px;overflow:auto;font-family:var(--mono);font-size:10px;color:var(--fg3);
-  white-space:pre-wrap;word-break:break-all}
+.progress{display:none;margin-top:12px}
+.progress.show{display:block;animation:fadeIn .2s}
+.progress-track{background:var(--surface3);height:8px;border-radius:4px;overflow:hidden}
+.progress-bar{
+  background:linear-gradient(90deg,#58a6ff,#bc8cff);height:100%;width:0;
+  transition:width .5s ease-out;border-radius:4px;
+  box-shadow:0 0 10px rgba(88,166,255,.5);
+}
+.progress-text{
+  margin-top:8px;font-size:11px;color:var(--fg2);
+  font-family:var(--mono);display:flex;align-items:center;gap:6px;
+}
+.progress-text .spinner{
+  width:10px;height:10px;border:2px solid var(--fg3);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;display:none;
+}
+.progress.show .spinner{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.log{
+  margin-top:10px;background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow:auto;
+  font-family:var(--mono);font-size:10px;color:var(--fg3);
+  white-space:pre-wrap;word-break:break-all;
+}
 .log:empty{display:none}
 
 /* Result */
 .result-card{display:none}
-.result-card.show{display:block}
-.result-card.success{border-color:var(--green)}
-.result-card.error{border-color:var(--red)}
-.result-card h3{color:inherit}
+.result-card.show{display:block;animation:fadeIn .25s}
+.result-card.success{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+.result-card.error{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.result-card h3{color:inherit;margin-bottom:12px}
 .result-card.success h3{color:var(--green)}
 .result-card.error h3{color:var(--red)}
-.result-meta{font-size:12px;color:var(--fg2);line-height:1.6;margin-bottom:10px}
-.result-meta b{color:var(--fg);font-family:var(--mono)}
+.result-meta{
+  font-size:12px;color:var(--fg2);line-height:1.7;margin-bottom:12px;
+  padding:10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);
+}
+.result-meta div{display:flex;align-items:flex-start;gap:6px;margin:3px 0;word-break:break-all}
+.result-meta div b{color:var(--fg);font-family:var(--mono);font-weight:500}
+.result-meta .label{color:var(--fg2);flex-shrink:0;min-width:70px;font-size:11px}
+.result-meta .value{
+  color:var(--fg);font-family:var(--mono);font-size:11px;
+  word-break:break-all;overflow-wrap:break-word;flex:1;
+}
+.result-meta .value.pkg{color:var(--accent)}
 .result-actions{display:flex;gap:8px}
-.result-actions .btn{flex:1}
+.result-actions .btn{flex:1;min-width:0}
+.result-actions details{margin-top:8px;width:100%}
+.result-actions details summary{
+  color:var(--fg3);font-size:11px;cursor:pointer;padding:4px 0;
+}
+.result-actions details pre{
+  margin-top:6px;font-size:10px;color:var(--fg3);
+  white-space:pre-wrap;word-break:break-all;background:var(--bg);
+  padding:8px;border-radius:4px;border:1px solid var(--border);
+  max-height:200px;overflow:auto;
+}
 
 /* History */
-.history{display:flex;flex-direction:column;gap:6px}
-.history-item{display:flex;align-items:center;justify-content:space-between;
-  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px 12px;font-size:12px}
-.history-item .info{flex:1;min-width:0}
-.history-item .name{color:var(--fg);font-weight:500;font-size:13px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.history-item .meta{color:var(--fg2);font-size:11px;margin-top:2px}
-.history-item .meta .pkg{color:var(--accent);font-family:var(--mono)}
-.history-item .dl{background:var(--surface3);color:var(--fg);border:none;
-  padding:7px 12px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;
-  font-family:inherit;white-space:nowrap;margin-left:8px}
-.history-item .dl:hover{background:var(--accent);color:#fff}
-.history-empty{color:var(--fg3);font-size:12px;text-align:center;padding:20px;font-style:italic}
+.history{display:flex;flex-direction:column;gap:8px}
+.history-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;
+  transition:border-color .15s;
+}
+.history-item:hover{border-color:var(--accent)}
+.history-item .info{flex:1;min-width:0;overflow:hidden}
+.history-item .name{
+  color:var(--fg);font-weight:500;font-size:13px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.history-item .meta{
+  color:var(--fg2);font-size:11px;margin-top:3px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.history-item .meta .pkg{color:var(--accent);font-family:var(--mono);font-size:10px}
+.history-item .meta .size{color:var(--fg3)}
+.history-item .dl{
+  background:var(--surface3);color:var(--fg);border:none;
+  padding:8px 14px;border-radius:4px;font-size:11px;font-weight:500;
+  cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;
+  transition:all .15s;
+}
+.history-item .dl:hover,.history-item .dl:active{background:var(--accent);color:#fff}
+.history-empty{
+  color:var(--fg3);font-size:12px;text-align:center;padding:24px 12px;font-style:italic;
+}
 
 /* Toast */
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+.toast{
+  position:fixed;bottom:calc(env(safe-area-inset-bottom) + 20px);
+  left:50%;transform:translateX(-50%);
   background:var(--surface2);color:var(--fg);border:1px solid var(--border);
   padding:10px 16px;border-radius:8px;font-size:13px;z-index:100;
-  box-shadow:0 4px 12px rgba(0,0,0,.4);display:none}
-.toast.show{display:block}
+  box-shadow:0 4px 12px rgba(0,0,0,.4);display:none;
+  max-width:90vw;word-break:break-word;
+}
+.toast.show{display:block;animation:slideUp .25s}
+@keyframes slideUp{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
 .toast.ok{border-color:var(--green)}
 .toast.err{border-color:var(--red)}
+
+/* Scrollbar styling for Android WebView */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--fg3)}
+
+/* Responsive tweaks */
+@media (max-width:380px){
+  body{font-size:13px}
+  .card{padding:12px}
+  .field input{padding:10px;font-size:12px}
+  .btn{padding:11px 14px;font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -131,20 +273,24 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
 <div class="header">
   <div class="brand">
     <div class="logo">A</div>
-    <div>
+    <div class="title-block">
       <div class="title">HTML to APK</div>
-      <div class="sub" id="healthLine"><span class="health-dot" id="healthDot"></span><span id="healthText">Connecting…</span></div>
+      <div class="sub" id="healthLine">
+        <span class="health-dot" id="healthDot"></span><span id="healthText">Connecting…</span>
+      </div>
     </div>
   </div>
-  <div style="font-size:10px;color:var(--fg3);text-align:right">
+  <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.2.0</div>
+    <div id="versionTag">v1.2.1</div>
   </div>
 </div>
 
+<main>
+
 <div class="card">
   <h3>Backend Status <span class="badge" id="backendBadge">checking…</span></h3>
-  <div style="font-size:11px;color:var(--fg2);font-family:var(--mono);word-break:break-all;background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--border)" id="backendUrlDisplay">Loading…</div>
+  <div class="backend-url" id="backendUrlDisplay">Loading…</div>
 </div>
 
 <div class="card" id="pickCard">
@@ -152,13 +298,13 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
   <div class="file-drop" id="fileDrop">
     <div class="icon">📄</div>
     <div class="label">Tap to choose an <b>.html</b> file</div>
-    <div style="margin-top:6px;font-size:10px;color:var(--fg3)">Opens Android file picker</div>
+    <div class="hint">Opens Android file picker</div>
   </div>
   <input type="file" id="fileInput" accept=".html,.htm,text/html" style="display:none">
   <div class="file-info" id="fileInfo">
     <div class="row"><span class="k">Name</span><span class="v" id="fileName"></span></div>
     <div class="row"><span class="k">Size</span><span class="v" id="fileSize"></span></div>
-    <div class="row"><span class="k">Detected title</span><span class="v" id="fileTitle"></span></div>
+    <div class="row"><span class="k">Title</span><span class="v" id="fileTitle"></span></div>
     <pre class="preview" id="filePreview"></pre>
   </div>
 </div>
@@ -167,22 +313,25 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
   <h3>② Configure</h3>
   <div class="field">
     <label for="appName">App name (required)</label>
-    <input type="text" id="appName" placeholder="e.g., My Cool App" maxlength="30">
+    <input type="text" id="appName" placeholder="e.g., My Cool App" maxlength="30" autocomplete="off">
   </div>
-  <div class="field">
+  <div class="field" style="margin-bottom:0">
     <label for="version">Version</label>
-    <input type="text" id="version" value="1.0.0" placeholder="1.0.0">
+    <input type="text" id="version" value="1.0.0" placeholder="1.0.0" autocomplete="off">
   </div>
 </div>
 
 <div class="card">
   <h3>③ Build APK</h3>
-  <button class="btn btn-primary" id="buildBtn" onclick="buildApk()" disabled>
+  <button class="btn btn-primary" id="buildBtn" disabled>
     <span id="buildBtnText">Pick HTML first</span>
   </button>
   <div class="progress" id="progress">
     <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
-    <div class="progress-text" id="progressText">Uploading…</div>
+    <div class="progress-text">
+      <span class="spinner"></span>
+      <span id="progressText">Uploading…</span>
+    </div>
   </div>
   <div class="log" id="buildLog"></div>
 </div>
@@ -203,15 +352,15 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);max-width
   </div>
 </div>
 
+</main>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// Backend URL — embedded at build time via BuildConfig.BACKEND_URL
 const DEFAULT_BACKEND_URL = "https://html-to-apk-1789777001.onrender.com";
 let BACKEND_URL = localStorage.getItem("backendUrl") || window.BACKEND_URL || DEFAULT_BACKEND_URL;
 const STATE = { htmlContent: "", fileName: "", lastResult: null };
 
-// ─── helpers ──────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
 function fmtSize(b) {
   if (!b) return "0 B";
@@ -273,9 +422,6 @@ async function checkHealth() {
 function setupFilePicker() {
   const drop = $("fileDrop"), input = $("fileInput");
 
-  // Click anywhere on the drop zone → trigger the hidden <input type="file">
-  // IMPORTANT: on Android WebView, this triggers WebChromeClient.onShowFileChooser()
-  // which we override in MainActivity.java to launch the system file picker.
   drop.addEventListener("click", (e) => {
     e.preventDefault();
     input.click();
@@ -294,7 +440,6 @@ function setupFilePicker() {
   input.addEventListener("change", e => {
     const files = e.target.files;
     if (files && files[0]) handleFile(files[0]);
-    // Reset the input so the same file can be picked again later
     e.target.value = "";
   });
 }
@@ -305,16 +450,15 @@ async function handleFile(file) {
     toast("Please pick an .html file", "err"); return;
   }
   STATE.fileName = file.name;
-  $("fileBadge").textContent = file.name;
+  $("fileBadge").textContent = file.name.length > 25
+    ? file.name.slice(0, 22) + "…" : file.name;
   $("fileName").textContent = file.name;
   $("fileSize").textContent = fmtSize(file.size);
 
-  // Read file as text — works on WebView with file:// or content:// URIs
   let text = "";
   try {
     text = await file.text();
   } catch (e) {
-    // Fallback: use FileReader
     text = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result || "");
@@ -327,7 +471,7 @@ async function handleFile(file) {
   const tm = text.match(/<title[^>]*>([^<]*)<\/title>/i);
   const title = tm ? tm[1].trim() : "";
   $("fileTitle").textContent = title || "(no <title> found)";
-  $("filePreview").textContent = text.slice(0, 500) + (text.length > 500 ? "…" : "");
+  $("filePreview").textContent = text.slice(0, 600) + (text.length > 600 ? "\n…" : "");
 
   $("fileInfo").classList.add("show");
 
@@ -335,6 +479,11 @@ async function handleFile(file) {
     $("appName").value = title || file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
   }
   validate();
+
+  // Smooth-scroll to Configure card
+  setTimeout(() => {
+    $("appName").scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 200);
 }
 
 function validate() {
@@ -369,9 +518,20 @@ async function buildApk() {
     setProgress(15, "Server is compiling (aapt2 + javac + d8 + zipalign + apksigner)…");
     log("✓ Upload complete, server building (~50s on free tier)…");
 
+    // Animate progress while waiting for server (fake-but-honest progress)
+    let fakePct = 20;
+    const progressInterval = setInterval(() => {
+      if (fakePct < 85) {
+        fakePct += 1;
+        setProgress(fakePct, "Server is compiling APK (" + fakePct + "%)…");
+      }
+    }, 800);
+
     const r = await fetch(BACKEND_URL + "/api/build-apk-from-html", {
       method: "POST", body: fd
     });
+    clearInterval(progressInterval);
+
     const d = await r.json();
     setProgress(95, "Finalizing…");
 
@@ -380,8 +540,10 @@ async function buildApk() {
       showResult(d, true);
       log("✅ Built in " + (d.duration_sec || "?") + "s · " + fmtSize(d.apk_size));
       setProgress(100, "Done!");
-      setTimeout(() => setProgress(null), 1000);
+      setTimeout(() => setProgress(null), 1200);
       toast("✓ APK built successfully", "ok");
+      // Refresh history now that the build is done
+      setTimeout(refreshHistory, 500);
     } else {
       log("✗ " + (d.error || "build failed"));
       showResult(d, false);
@@ -406,15 +568,20 @@ function showResult(d, ok) {
   card.classList.toggle("error", !ok);
   $("resultTitle").textContent = ok ? "✓ Build Successful" : "✗ Build Failed";
   if (ok) {
+    const m = d.manifest || {};
     $("resultMeta").innerHTML =
-      '<div>App: <b>' + escapeHtml(d.manifest?.app_name || d.app_name || "") + '</b></div>' +
-      '<div>Package: <b style="color:var(--accent)">' + escapeHtml(d.manifest?.package || "") + '</b></div>' +
-      '<div>Version: <b>' + escapeHtml(d.manifest?.version_name || "1.0.0") + '</b></div>' +
-      '<div>Size: <b>' + fmtSize(d.apk_size) + '</b> · Built in <b>' + (d.duration_sec?.toFixed(1) || "?") + 's</b></div>' +
-      '<div>Mode: <b>' + escapeHtml(d.build_mode || "") + '</b></div>';
+      '<div><span class="label">App:</span><span class="value">' + escapeHtml(m.app_name || d.app_name || "") + '</span></div>' +
+      '<div><span class="label">Package:</span><span class="value pkg">' + escapeHtml(m.package || "") + '</span></div>' +
+      '<div><span class="label">Version:</span><span class="value">' + escapeHtml(m.version_name || "1.0.0") + ' (code ' + (m.version_code || 1) + ')</span></div>' +
+      '<div><span class="label">Size:</span><span class="value">' + fmtSize(d.apk_size) + '</span></div>' +
+      '<div><span class="label">Built in:</span><span class="value">' + (d.duration_sec ? d.duration_sec.toFixed(1) + "s" : "?") + '</span></div>' +
+      '<div><span class="label">Mode:</span><span class="value">' + escapeHtml(d.build_mode || "") + '</span></div>';
+    // Smooth-scroll to the result
+    setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
   } else {
-    $("resultMeta").innerHTML = '<div style="color:var(--red);font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all">' + escapeHtml(d.error || "Unknown error") + '</div>' +
-      (d.traceback ? '<details style="margin-top:8px"><summary style="color:var(--fg3);font-size:11px;cursor:pointer">Stack trace</summary><pre style="margin-top:6px;font-size:10px;color:var(--fg3);white-space:pre-wrap">' + escapeHtml(d.traceback) + '</pre></details>' : '');
+    $("resultMeta").innerHTML =
+      '<div><span class="label" style="color:var(--red)">Error:</span><span class="value" style="color:var(--red);white-space:pre-wrap;word-break:break-all">' + escapeHtml(d.error || "Unknown error") + '</span></div>' +
+      (d.traceback ? '<details style="margin-top:8px;width:100%"><summary style="color:var(--fg3);font-size:11px;cursor:pointer;padding:4px 0">Stack trace</summary><pre style="margin-top:6px;font-size:10px;color:var(--fg3);white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:8px;border-radius:4px;border:1px solid var(--border);max-height:200px;overflow:auto">' + escapeHtml(d.traceback) + '</pre></details>' : '');
   }
 }
 
@@ -436,11 +603,55 @@ function resetBuilder() {
   $("resultCard").classList.remove("show");
   $("buildLog").textContent = "";
   setProgress(null);
+  $("pickCard").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ─── history ────────────────────────────────────────────────────────────────
+async function refreshHistory() {
+  try {
+    const r = await fetch(BACKEND_URL + "/api/apks");
+    const d = await r.json();
+    const apks = d.apks || [];
+    $("historyCount").textContent = apks.length;
+    $("buildsCount").textContent = apks.length + " build" + (apks.length === 1 ? "" : "s");
+    if (apks.length === 0) {
+      $("historyList").innerHTML = '<div class="history-empty">No APKs built yet — pick an HTML file above to start.</div>';
+      return;
+    }
+    $("historyList").innerHTML = apks.slice().reverse().map(a => {
+      const dlUrl = BACKEND_URL + "/download/" + a.function + "/" + encodeURIComponent(a.name);
+      const dateStr = new Date(a.modified).toLocaleString();
+      return '<div class="history-item">' +
+        '<div class="info">' +
+          '<div class="name">' + escapeHtml(a.name) + '</div>' +
+          '<div class="meta">' +
+            '<span class="pkg">' + escapeHtml(a.function) + '</span>' +
+            '<span class="size">' + fmtSize(a.size) + '</span>' +
+            '<span>· ' + dateStr + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<button class="dl" onclick="downloadHistory(\'' + dlUrl.replace(/'/g, "\\'") + '\', \'' + escapeHtml(a.name).replace(/'/g, "\\'") + '\')">Download</button>' +
+      '</div>';
+    }).join("");
+  } catch (e) {
+    console.warn("history fetch failed", e);
+  }
+}
+
+function downloadHistory(url, name) {
+  if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
+    AndroidBridge.downloadApk(url, name);
+  } else {
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  toast("Downloading " + name, "ok");
 }
 
 // ─── init ──────────────────────────────────────────────────────────────────
 setupFilePicker();
-checkHealth();
+checkHealth().then(() => refreshHistory());
 setInterval(checkHealth, 30000);
 </script>
 </body>
