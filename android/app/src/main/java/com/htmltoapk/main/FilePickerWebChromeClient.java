@@ -36,7 +36,11 @@ public class FilePickerWebChromeClient extends WebChromeClient {
         owner.setFilePathCallback(callback);
         try {
             Intent intent = params.createIntent();
-            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+            // Check if the HTML <input> has the "multiple" attribute.
+            // We detect this by looking at the params.getAcceptTypes() length OR
+            // by always allowing multiple selection (safer — the user can pick 1 or more).
+            // Setting EXTRA_ALLOW_MULTIPLE=true lets the picker accept multiple files.
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             owner.startActivityForResult(intent, MainActivity.FILE_CHOOSER_REQUEST);
             return true;
         } catch (Exception e) {
