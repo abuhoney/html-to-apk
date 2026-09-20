@@ -266,6 +266,72 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   .field input{padding:10px;font-size:12px}
   .btn{padding:11px 14px;font-size:13px}
 }
+
+/* Media Type Picker */
+.media-type-scroll{
+  display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;
+  padding:4px 2px 10px;margin-bottom:10px;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+}
+.media-type-card{
+  flex:0 0 110px;height:120px;
+  background:var(--surface2);border:2px solid var(--border);
+  border-radius:12px;padding:14px 10px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  cursor:pointer;transition:all .15s;scroll-snap-align:start;
+  -webkit-user-select:none;user-select:none;
+}
+.media-type-card:hover{border-color:var(--accent);background:rgba(88,166,255,.08)}
+.media-type-card:active{transform:scale(.97)}
+.media-type-card.selected{
+  border-color:var(--accent);
+  background:linear-gradient(135deg,rgba(88,166,255,.15),rgba(188,92,255,.1));
+  box-shadow:0 0 0 1px var(--accent);
+}
+.media-type-icon{font-size:36px;line-height:1}
+.media-type-label{font-size:13px;font-weight:600;color:var(--fg)}
+
+/* Media Drop Zone (initially disabled) */
+.media-drop{opacity:.5;pointer-events:none;transition:opacity .15s}
+.media-drop.enabled{opacity:1;pointer-events:auto}
+
+/* Media File List */
+.media-list{
+  margin-top:12px;padding:10px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+}
+.media-list-header{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:10px;font-size:12px;font-weight:600;color:var(--fg);
+}
+.btn-clear{
+  background:var(--surface3);color:var(--fg);border:none;
+  padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;
+}
+.btn-clear:active{background:var(--red);color:#fff}
+.media-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px;background:var(--bg);border-radius:6px;
+  margin-bottom:6px;font-size:12px;
+}
+.media-item-icon{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+.media-item-info{flex:1;min-width:0}
+.media-item-name{
+  color:var(--fg);font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.media-item-meta{color:var(--fg2);font-size:10px;margin-top:2px}
+.media-item-remove{
+  background:none;border:none;color:var(--fg3);cursor:pointer;
+  font-size:18px;padding:0 6px;flex-shrink:0;
+}
+.media-item-remove:active{color:var(--red)}
+.media-stats{
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--fg2);text-align:center;
+}
+
 </style>
 </head>
 <body>
@@ -282,7 +348,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.2.2</div>
+    <div id="versionTag">v1.3.0</div>
   </div>
 </div>
 
@@ -308,6 +374,45 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
     <pre class="preview" id="filePreview"></pre>
   </div>
 </div>
+
+<div class="card" id="mediaPickCard">
+  <h3>①½ Pick Media File <span class="badge" id="mediaBadge">none</span></h3>
+
+  <!-- Horizontal scroll for media type picker -->
+  <div class="media-type-scroll">
+    <div class="media-type-card" data-type="music" onclick="selectMediaType('music')">
+      <div class="media-type-icon">🎵</div>
+      <div class="media-type-label">Music</div>
+    </div>
+    <div class="media-type-card" data-type="video" onclick="selectMediaType('video')">
+      <div class="media-type-icon">🎬</div>
+      <div class="media-type-label">Video</div>
+    </div>
+    <div class="media-type-card" data-type="photo" onclick="selectMediaType('photo')">
+      <div class="media-type-icon">📷</div>
+      <div class="media-type-label">Photo</div>
+    </div>
+  </div>
+
+  <!-- Drop zone (enabled after type selection) -->
+  <div class="file-drop media-drop" id="mediaDrop">
+    <div class="icon">📁</div>
+    <div class="label" id="mediaDropLabel">Select a media type above first</div>
+    <div class="hint" id="mediaDropHint">Music, Video, or Photo</div>
+  </div>
+  <input type="file" id="mediaInput" multiple style="display:none">
+
+  <!-- Selected media files list -->
+  <div class="media-list" id="mediaList" style="display:none">
+    <div class="media-list-header">
+      <span id="mediaListTitle">Selected files (0)</span>
+      <button class="btn-clear" onclick="clearMedia()">Clear</button>
+    </div>
+    <div id="mediaItems"></div>
+    <div class="media-stats" id="mediaStats"></div>
+  </div>
+</div>
+
 
 <div class="card">
   <h3>② Configure</h3>
@@ -548,20 +653,32 @@ function readFileAsText(file) {
 
 function validate() {
   // Build button is enabled if EITHER:
-  //   - We have HTML content already read, OR
-  //   - We have a File object picked (buildApk will read it via FormData)
+  //   - We have HTML content already read (HTML mode), OR
+  //   - We have a File object picked (HTML mode), OR
+  //   - We have media items selected (Media mode)
   // AND the app name is non-empty.
-  const hasInput = (STATE.htmlContent || STATE.fileObj) && $("appName").value.trim().length > 0;
+  const hasHTML = STATE.htmlContent || STATE.fileObj;
+  const hasMedia = mediaItems.length > 0;
+  const hasInput = (hasHTML || hasMedia) && $("appName").value.trim().length > 0;
   $("buildBtn").disabled = !hasInput;
-  if (hasInput) $("buildBtnText").textContent = "Build APK";
-  else if (!STATE.htmlContent && !STATE.fileObj) $("buildBtnText").textContent = "Pick HTML first";
-  else $("buildBtnText").textContent = "Enter app name";
+  if (hasInput) {
+    if (hasMedia) $("buildBtnText").textContent = "Build Media APK";
+    else $("buildBtnText").textContent = "Build APK";
+  } else if (!hasHTML && !hasMedia) {
+    $("buildBtnText").textContent = "Pick HTML or Media first";
+  } else {
+    $("buildBtnText").textContent = "Enter app name";
+  }
 }
 
 $("appName").addEventListener("input", validate);
 
 // ─── build ──────────────────────────────────────────────────────────────────
 async function buildApk() {
+  // If media items are selected, dispatch to buildMediaApk instead
+  if (mediaItems.length > 0) {
+    return buildMediaApk();
+  }
   // Need either pre-read HTML content OR a File object to send
   if (!STATE.htmlContent && !STATE.fileObj) {
     toast("Pick an HTML file first", "err");
@@ -732,6 +849,286 @@ function downloadHistory(url, name) {
   }
   toast("Downloading " + name, "ok");
 }
+
+
+// ─── Media File Picker ──────────────────────────────────────────────────────
+let selectedMediaType = null;
+let mediaItems = []; // [{file, name, size, type, uint8}]
+
+function selectMediaType(type) {
+  selectedMediaType = type;
+  document.querySelectorAll('.media-type-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.type === type);
+  });
+  const labels = {music: 'Music (.mp3, .wav, .ogg, .m4a)', video: 'Video (.mp4, .mkv, .webm, .mov)', photo: 'Photo (.jpg, .png, .gif, .webp)'};
+  const accepts = {
+    music: 'audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,.wma',
+    video: 'video/*,.mp4,.mkv,.webm,.mov,.avi,.flv,.wmv,.m4v,.3gp',
+    photo: 'image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.heic'
+  };
+  document.getElementById('mediaDropLabel').innerHTML = 'Tap to pick <b>' + labels[type] + '</b> files';
+  document.getElementById('mediaDropHint').textContent = 'Multiple files allowed';
+  document.getElementById('mediaInput').setAttribute('accept', accepts[type]);
+  document.getElementById('mediaDrop').classList.add('enabled');
+  toast('Selected: ' + type, 'ok');
+}
+
+function setupMediaPicker() {
+  const drop = document.getElementById('mediaDrop');
+  const input = document.getElementById('mediaInput');
+
+  drop.addEventListener('click', () => {
+    if (!selectedMediaType) {
+      toast('Pick a media type first', 'err');
+      return;
+    }
+    input.click();
+  });
+
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add('over');
+  }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', e => {
+    if (!selectedMediaType) return;
+    handleMediaFiles(e.dataTransfer.files);
+  });
+
+  input.addEventListener('change', e => {
+    if (e.target.files.length > 0) {
+      handleMediaFiles(e.target.files);
+    }
+    e.target.value = '';
+  });
+}
+
+async function handleMediaFiles(fileList) {
+  for (const file of fileList) {
+    // Validate file type matches selectedMediaType
+    const typeMap = {music: /audio\//i, video: /video\//i, photo: /image\//i};
+    const extMap = {
+      music: /\.(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/i,
+      video: /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp)$/i,
+      photo: /\.(jpe?g|png|gif|webp|bmp|svg|heic)$/i
+    };
+    if (!typeMap[selectedMediaType].test(file.type) && !extMap[selectedMediaType].test(file.name)) {
+      toast('Skipping ' + file.name + ' (wrong type)', 'err');
+      continue;
+    }
+
+    // Read file as ArrayBuffer immediately (Android URI revocation fix from reference media.html)
+    let uint8;
+    try {
+      const buf = await file.arrayBuffer();
+      uint8 = new Uint8Array(buf);
+    } catch (e) {
+      // Fallback to FileReader
+      uint8 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    mediaItems.push({
+      file: file,
+      name: file.name,
+      size: file.size,
+      type: file.type || selectedMediaType + '/*',
+      uint8: uint8,
+    });
+  }
+  renderMediaItems();
+  validate();
+}
+
+function renderMediaItems() {
+  const list = document.getElementById('mediaItems');
+  const stats = document.getElementById('mediaStats');
+  const header = document.getElementById('mediaListTitle');
+  const listEl = document.getElementById('mediaList');
+
+  if (mediaItems.length === 0) {
+    listEl.style.display = 'none';
+    document.getElementById('mediaBadge').textContent = 'none';
+    return;
+  }
+  listEl.style.display = 'block';
+
+  const iconMap = {music: '🎵', video: '🎬', photo: '📷'};
+  const icon = iconMap[selectedMediaType] || '📁';
+  const totalSize = mediaItems.reduce((s, i) => s + i.size, 0);
+
+  header.textContent = 'Selected files (' + mediaItems.length + ')';
+  document.getElementById('mediaBadge').textContent = mediaItems.length + ' ' + selectedMediaType;
+
+  list.innerHTML = mediaItems.map((item, i) => {
+    return '<div class="media-item">' +
+      '<div class="media-item-icon">' + icon + '</div>' +
+      '<div class="media-item-info">' +
+        '<div class="media-item-name">' + escapeHtml(item.name) + '</div>' +
+        '<div class="media-item-meta">' + fmtSize(item.size) + ' · ' + item.type + '</div>' +
+      '</div>' +
+      '<button class="media-item-remove" onclick="removeMediaItem(' + i + ')">×</button>' +
+    '</div>';
+  }).join('');
+
+  stats.textContent = 'Total: ' + fmtSize(totalSize) + ' · ' + mediaItems.length + ' file' + (mediaItems.length === 1 ? '' : 's');
+}
+
+function removeMediaItem(i) {
+  mediaItems.splice(i, 1);
+  renderMediaItems();
+  validate();
+}
+
+function clearMedia() {
+  mediaItems = [];
+  selectedMediaType = null;
+  document.querySelectorAll('.media-type-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('mediaDrop').classList.remove('enabled');
+  document.getElementById('mediaDropLabel').textContent = 'Select a media type above first';
+  document.getElementById('mediaDropHint').textContent = 'Music, Video, or Photo';
+  renderMediaItems();
+  validate();
+}
+
+// Convert Uint8Array to base64 in chunks (avoid stack overflow)
+function uint8ToBase64(uint8) {
+  let result = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < uint8.length; i += chunkSize) {
+    const chunk = uint8.subarray(i, i + chunkSize);
+    result += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(result);
+}
+
+async function buildMediaApk() {
+  if (mediaItems.length === 0) {
+    toast('No media files selected', 'err');
+    return;
+  }
+  let appName = document.getElementById('appName').value.trim();
+  if (!appName) {
+    toast('App name required', 'err');
+    document.getElementById('appName').focus();
+    return;
+  }
+  const ver = document.getElementById('version').value.trim() || '1.0.0';
+
+  document.getElementById('buildBtn').disabled = true;
+  document.getElementById('buildBtnText').textContent = 'Bundling media...';
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('buildLog').textContent = '';
+  setProgress(5, 'Bundling ' + mediaItems.length + ' media files...');
+
+  log('→ Building ' + selectedMediaType + ' APK with ' + mediaItems.length + ' files');
+
+  try {
+    // Build the JSON bundle (base64-encoded media files + metadata)
+    // This is the format the backend expects:
+    //   {__meta: {media_type, app_name, total_files, total_size},
+    //    files: [{path, original_name, mime, size, title, data (base64)}]}
+
+    setProgress(15, 'Encoding media files to base64...');
+    log('Encoding ' + mediaItems.length + ' files to base64...');
+
+    const files = [];
+    let totalSize = 0;
+    for (let i = 0; i < mediaItems.length; i++) {
+      const item = mediaItems[i];
+      totalSize += item.size;
+
+      // Convert uint8 to base64
+      const base64 = uint8ToBase64(item.uint8);
+
+      // Use just the filename (no subdirectories) for the path
+      const path = item.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      const title = path.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+
+      files.push({
+        path: path,
+        original_name: item.name,
+        mime: item.type,
+        size: item.size,
+        title: title,
+        data: base64,
+      });
+
+      setProgress(15 + Math.floor((i / mediaItems.length) * 30), 'Encoded ' + (i + 1) + '/' + mediaItems.length + ' files');
+      log('  ' + (i + 1) + '. ' + path + ' (' + fmtSize(item.size) + ')');
+
+      // Yield to UI
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    const bundle = {
+      __meta: {
+        media_type: selectedMediaType,
+        app_name: appName,
+        total_files: files.length,
+        total_size_bytes: totalSize,
+      },
+      files: files,
+    };
+
+    setProgress(50, 'Uploading bundle to server...');
+    log('Uploading bundle (' + fmtSize(totalSize) + ' total)...');
+
+    // Create a FormData with the bundle as a JSON file
+    const bundleBlob = new Blob([JSON.stringify(bundle)], {type: 'application/json'});
+    const fd = new FormData();
+    fd.append('bundle_file', bundleBlob, 'media_bundle.json');
+    fd.append('app_name', appName);
+    fd.append('media_type', selectedMediaType);
+    fd.append('version_name', ver);
+
+    setProgress(60, 'Server is compiling (aapt2 + javac + d8 + zipalign + apksigner)...');
+    log('Server building (~50s on free tier)...');
+
+    let fakePct = 65;
+    const progressInterval = setInterval(() => {
+      if (fakePct < 90) {
+        fakePct += 1;
+        setProgress(fakePct, 'Server compiling APK (' + fakePct + '%)...');
+      }
+    }, 1500);
+
+    const r = await fetch(BACKEND_URL + '/api/build-media-apk', {method: 'POST', body: fd});
+    clearInterval(progressInterval);
+
+    const d = await r.json();
+    setProgress(95, 'Finalizing...');
+
+    if (d.success) {
+      STATE.lastResult = d;
+      showResult(d, true);
+      log('Built in ' + (d.duration_sec || '?') + 's · ' + fmtSize(d.apk_size));
+      setProgress(100, 'Done!');
+      setTimeout(() => setProgress(null), 1200);
+      toast('APK built successfully', 'ok');
+      setTimeout(refreshHistory, 500);
+    } else {
+      log('Failed: ' + (d.error || 'unknown'));
+      showResult(d, false);
+      setProgress(null);
+      toast('Build failed', 'err');
+    }
+  } catch (e) {
+    log('Network error: ' + e.message);
+    showResult({success: false, error: 'Network error: ' + e.message}, false);
+    setProgress(null);
+    toast('Network error', 'err');
+  }
+
+  document.getElementById('buildBtn').disabled = false;
+  document.getElementById('buildBtnText').textContent = 'Build APK';
+}
+
 
 // ─── init ──────────────────────────────────────────────────────────────────
 setupFilePicker();
