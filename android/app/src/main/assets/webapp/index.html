@@ -348,7 +348,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.3.0</div>
+    <div id="versionTag">v1.3.1</div>
   </div>
 </div>
 
@@ -1132,6 +1132,7 @@ async function buildMediaApk() {
 
 // ─── init ──────────────────────────────────────────────────────────────────
 setupFilePicker();
+setupMediaPicker();
 checkHealth().then(() => refreshHistory());
 setInterval(checkHealth, 30000);
 </script>
