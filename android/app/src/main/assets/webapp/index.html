@@ -386,7 +386,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.4.0</div>
+    <div id="versionTag">v1.4.1</div>
   </div>
 </div>
 
@@ -1268,25 +1268,72 @@ function setupIconPicker() {
       return;
     }
 
-    // Read as ArrayBuffer
     try {
-      customIconData = await file.arrayBuffer();
-      customIconMime = file.type || 'image/png';
+      // Convert ANY image format to PNG using Canvas API
+      // This ensures aapt2 can compile it as an Android resource
+      const pngBlob = await convertImageToPng(file);
+      customIconData = await pngBlob.arrayBuffer();
+      customIconMime = 'image/png';
 
       // Show preview
       const preview = document.getElementById('iconPreview');
-      const url = URL.createObjectURL(new Blob([customIconData], {type: customIconMime}));
+      const url = URL.createObjectURL(pngBlob);
       preview.innerHTML = '<img src="' + url + '" alt="App icon">';
 
       // Show remove button
       document.getElementById('clearIconBtn').style.display = 'block';
-      document.getElementById('iconHint').textContent = '✓ Custom icon set (' + fmtSize(customIconData.byteLength) + ') · will override auto-generated';
+      document.getElementById('iconHint').textContent = '✓ Icon converted to PNG (' + fmtSize(customIconData.byteLength) + ') · ready for build';
 
-      toast('Icon loaded: ' + file.name, 'ok');
+      toast('Icon loaded & converted to PNG', 'ok');
     } catch (err) {
-      toast('Failed to read icon: ' + err.message, 'err');
+      toast('Failed to process icon: ' + err.message, 'err');
+      console.error('Icon error:', err);
     }
     e.target.value = '';
+  });
+}
+
+// Convert any image (JPEG, WebP, BMP, GIF, PNG) to PNG using Canvas API
+// This is critical because aapt2 requires PNG for Android launcher icons
+async function convertImageToPng(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // Create a canvas at the icon's native resolution (max 512x512 for size)
+      const maxDim = 512;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Convert to PNG blob
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Canvas toBlob returned null'));
+        }
+      }, 'image/png');
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Cannot load image'));
+    };
+
+    img.src = url;
   });
 }
 
