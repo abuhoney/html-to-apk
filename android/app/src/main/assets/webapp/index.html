@@ -332,6 +332,44 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   font-size:11px;color:var(--fg2);text-align:center;
 }
 
+/* Custom App Icon Picker */
+.icon-picker-section{
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--border);
+}
+.icon-picker-section label{
+  display:block;font-size:11px;color:var(--fg2);margin-bottom:8px;font-weight:500;
+}
+.icon-picker-row{
+  display:flex;align-items:center;gap:14px;
+}
+.icon-preview{
+  width:64px;height:64px;border-radius:14px;flex-shrink:0;
+  background:var(--bg);border:2px dashed var(--border);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;position:relative;
+}
+.icon-preview img{
+  width:100%;height:100%;object-fit:cover;border-radius:12px;
+}
+.icon-placeholder{
+  font-size:28px;opacity:.5;
+}
+.icon-picker-actions{
+  flex:1;display:flex;flex-direction:column;gap:6px;
+}
+.icon-pick-btn{
+  width:100%;padding:10px 14px;font-size:12px;
+}
+.btn-clear-sm{
+  background:var(--surface3);color:var(--fg2);border:none;
+  padding:6px 10px;border-radius:4px;font-size:11px;cursor:pointer;
+  width:fit-content;
+}
+.btn-clear-sm:active{background:var(--red);color:#fff}
+.icon-hint{
+  margin-top:8px;font-size:10px;color:var(--fg3);line-height:1.5;
+}
+
 </style>
 </head>
 <body>
@@ -348,7 +386,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.3.1</div>
+    <div id="versionTag">v1.4.0</div>
   </div>
 </div>
 
@@ -392,13 +430,21 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
       <div class="media-type-icon">📷</div>
       <div class="media-type-label">Photo</div>
     </div>
+    <div class="media-type-card" data-type="zip" onclick="selectMediaType('zip')">
+      <div class="media-type-icon">📦</div>
+      <div class="media-type-label">ZIP to APK</div>
+    </div>
+    <div class="media-type-card" data-type="any" onclick="selectMediaType('any')">
+      <div class="media-type-icon">📁</div>
+      <div class="media-type-label">Any Files</div>
+    </div>
   </div>
 
   <!-- Drop zone (enabled after type selection) -->
   <div class="file-drop media-drop" id="mediaDrop">
     <div class="icon">📁</div>
     <div class="label" id="mediaDropLabel">Select a media type above first</div>
-    <div class="hint" id="mediaDropHint">Music, Video, or Photo</div>
+    <div class="hint" id="mediaDropHint">Music, Video, Photo, ZIP, or Any Files</div>
   </div>
   <input type="file" id="mediaInput" multiple style="display:none">
 
@@ -423,6 +469,24 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   <div class="field" style="margin-bottom:0">
     <label for="version">Version</label>
     <input type="text" id="version" value="1.0.0" placeholder="1.0.0" autocomplete="off">
+  </div>
+
+  <!-- Custom App Icon Picker -->
+  <div class="icon-picker-section">
+    <label>Custom App Icon (optional — overrides auto-generated)</label>
+    <div class="icon-picker-row">
+      <div class="icon-preview" id="iconPreview">
+        <div class="icon-placeholder">📱</div>
+      </div>
+      <div class="icon-picker-actions">
+        <button class="btn btn-alt icon-pick-btn" onclick="document.getElementById('iconInput').click()">
+          📷 Pick Icon PNG
+        </button>
+        <button class="btn-clear-sm" onclick="clearCustomIcon()" id="clearIconBtn" style="display:none">✕ Remove</button>
+      </div>
+    </div>
+    <input type="file" id="iconInput" accept="image/png,image/jpeg,image/webp" style="display:none">
+    <div class="icon-hint" id="iconHint">PNG recommended · 192×192 or larger · Square aspect ratio</div>
   </div>
 </div>
 
@@ -860,14 +924,22 @@ function selectMediaType(type) {
   document.querySelectorAll('.media-type-card').forEach(c => {
     c.classList.toggle('selected', c.dataset.type === type);
   });
-  const labels = {music: 'Music (.mp3, .wav, .ogg, .m4a)', video: 'Video (.mp4, .mkv, .webm, .mov)', photo: 'Photo (.jpg, .png, .gif, .webp)'};
+  const labels = {
+    music: 'Music (.mp3, .wav, .ogg, .m4a)',
+    video: 'Video (.mp4, .mkv, .webm, .mov)',
+    photo: 'Photo (.jpg, .png, .gif, .webp)',
+    zip: 'ZIP archive (.zip) — contents become the app',
+    any: 'Any files (.pdf, .doc, .txt, .csv, .html, etc.)'
+  };
   const accepts = {
     music: 'audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,.wma',
     video: 'video/*,.mp4,.mkv,.webm,.mov,.avi,.flv,.wmv,.m4v,.3gp',
-    photo: 'image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.heic'
+    photo: 'image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.heic',
+    zip: '.zip,application/zip,application/x-zip-compressed',
+    any: '*/*'
   };
   document.getElementById('mediaDropLabel').innerHTML = 'Tap to pick <b>' + labels[type] + '</b> files';
-  document.getElementById('mediaDropHint').textContent = 'Multiple files allowed';
+  document.getElementById('mediaDropHint').textContent = type === 'zip' ? 'Single ZIP file' : 'Multiple files allowed';
   document.getElementById('mediaInput').setAttribute('accept', accepts[type]);
   document.getElementById('mediaDrop').classList.add('enabled');
   toast('Selected: ' + type, 'ok');
@@ -906,25 +978,36 @@ function setupMediaPicker() {
 
 async function handleMediaFiles(fileList) {
   for (const file of fileList) {
-    // Validate file type matches selectedMediaType
-    const typeMap = {music: /audio\//i, video: /video\//i, photo: /image\//i};
-    const extMap = {
-      music: /\.(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/i,
-      video: /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp)$/i,
-      photo: /\.(jpe?g|png|gif|webp|bmp|svg|heic)$/i
-    };
-    if (!typeMap[selectedMediaType].test(file.type) && !extMap[selectedMediaType].test(file.name)) {
-      toast('Skipping ' + file.name + ' (wrong type)', 'err');
-      continue;
+    // Validate file type matches selectedMediaType (skip validation for 'zip' and 'any')
+    if (selectedMediaType !== 'zip' && selectedMediaType !== 'any') {
+      const typeMap = {music: /audio\//i, video: /video\//i, photo: /image\//i};
+      const extMap = {
+        music: /\.(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/i,
+        video: /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp)$/i,
+        photo: /\.(jpe?g|png|gif|webp|bmp|svg|heic)$/i
+      };
+      if (!typeMap[selectedMediaType].test(file.type) && !extMap[selectedMediaType].test(file.name)) {
+        toast('Skipping ' + file.name + ' (wrong type)', 'err');
+        continue;
+      }
     }
 
-    // Read file as ArrayBuffer immediately (Android URI revocation fix from reference media.html)
+    // For ZIP mode: only accept .zip files, and only one at a time
+    if (selectedMediaType === 'zip') {
+      if (!/\.zip$/i.test(file.name)) {
+        toast('Skipping ' + file.name + ' (not a ZIP)', 'err');
+        continue;
+      }
+      // Replace existing items (ZIP mode = single file)
+      mediaItems = [];
+    }
+
+    // Read file as ArrayBuffer immediately (Android URI revocation fix)
     let uint8;
     try {
       const buf = await file.arrayBuffer();
       uint8 = new Uint8Array(buf);
     } catch (e) {
-      // Fallback to FileReader
       uint8 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(new Uint8Array(reader.result));
@@ -937,12 +1020,32 @@ async function handleMediaFiles(fileList) {
       file: file,
       name: file.name,
       size: file.size,
-      type: file.type || selectedMediaType + '/*',
+      type: file.type || getMimeTypeFromName(file.name),
       uint8: uint8,
     });
   }
   renderMediaItems();
   validate();
+}
+
+function getMimeTypeFromName(name) {
+  const ext = (name.match(/\.([a-z0-9]+)$/i) || [,''])[1].toLowerCase();
+  const map = {
+    mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', m4a:'audio/mp4', aac:'audio/aac',
+    flac:'audio/flac', opus:'audio/opus', wma:'audio/x-ms-wma',
+    mp4:'video/mp4', mkv:'video/x-matroska', webm:'video/webm', mov:'video/quicktime',
+    avi:'video/x-msvideo', flv:'video/x-flv', wmv:'video/x-ms-wmv', m4v:'video/x-m4v', '3gp':'video/3gpp',
+    jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp',
+    bmp:'image/bmp', svg:'image/svg+xml', heic:'image/heic',
+    pdf:'application/pdf', txt:'text/plain', html:'text/html', htm:'text/html',
+    css:'text/css', js:'application/javascript', json:'application/json', xml:'application/xml',
+    csv:'text/csv', md:'text/markdown', doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt:'application/vnd.ms-powerpoint', pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    zip:'application/zip', rar:'application/x-rar-compressed', '7z':'application/x-7z-compressed',
+    tar:'application/x-tar', gz:'application/gzip',
+  };
+  return map[ext] || 'application/octet-stream';
 }
 
 function renderMediaItems() {
@@ -958,14 +1061,25 @@ function renderMediaItems() {
   }
   listEl.style.display = 'block';
 
-  const iconMap = {music: '🎵', video: '🎬', photo: '📷'};
-  const icon = iconMap[selectedMediaType] || '📁';
+  const typeIconMap = {music: '🎵', video: '🎬', photo: '📷', zip: '📦', any: '📁'};
   const totalSize = mediaItems.reduce((s, i) => s + i.size, 0);
 
   header.textContent = 'Selected files (' + mediaItems.length + ')';
   document.getElementById('mediaBadge').textContent = mediaItems.length + ' ' + selectedMediaType;
 
   list.innerHTML = mediaItems.map((item, i) => {
+    // Per-file icon based on extension
+    const ext = (item.name.match(/\.([a-z0-9]+)$/i) || [,''])[1].toLowerCase();
+    let icon = typeIconMap[selectedMediaType] || '📁';
+    if (selectedMediaType === 'any' || selectedMediaType === 'zip') {
+      if (/^(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/.test(ext)) icon = '🎵';
+      else if (/^(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp)$/.test(ext)) icon = '🎬';
+      else if (/^(jpe?g|png|gif|webp|bmp|svg|heic)$/.test(ext)) icon = '🖼️';
+      else if (/^(pdf)$/.test(ext)) icon = '📄';
+      else if (/^(txt|md|csv|json|xml|html?|css|js)$/.test(ext)) icon = '📝';
+      else if (/^(zip|rar|7z|tar|gz)$/.test(ext)) icon = '📦';
+      else icon = '📎';
+    }
     return '<div class="media-item">' +
       '<div class="media-item-icon">' + icon + '</div>' +
       '<div class="media-item-info">' +
@@ -1087,6 +1201,13 @@ async function buildMediaApk() {
     fd.append('media_type', selectedMediaType);
     fd.append('version_name', ver);
 
+    // Attach custom icon if present
+    if (customIconData) {
+      const iconBlob = new Blob([customIconData], {type: customIconMime});
+      fd.append('icon_file', iconBlob, 'app_icon.png');
+      log('Custom icon attached (' + fmtSize(customIconData.byteLength) + ')');
+    }
+
     setProgress(60, 'Server is compiling (aapt2 + javac + d8 + zipalign + apksigner)...');
     log('Server building (~50s on free tier)...');
 
@@ -1130,9 +1251,59 @@ async function buildMediaApk() {
 }
 
 
+// ─── Custom App Icon Picker ──────────────────────────────────────────────────
+let customIconData = null;  // ArrayBuffer
+let customIconMime = null;
+
+function setupIconPicker() {
+  const input = document.getElementById('iconInput');
+  input.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate it's an image
+    if (!file.type.startsWith('image/') && !/\.(png|jpe?g|webp)$/i.test(file.name)) {
+      toast('Please pick a PNG/JPG/WebP image', 'err');
+      e.target.value = '';
+      return;
+    }
+
+    // Read as ArrayBuffer
+    try {
+      customIconData = await file.arrayBuffer();
+      customIconMime = file.type || 'image/png';
+
+      // Show preview
+      const preview = document.getElementById('iconPreview');
+      const url = URL.createObjectURL(new Blob([customIconData], {type: customIconMime}));
+      preview.innerHTML = '<img src="' + url + '" alt="App icon">';
+
+      // Show remove button
+      document.getElementById('clearIconBtn').style.display = 'block';
+      document.getElementById('iconHint').textContent = '✓ Custom icon set (' + fmtSize(customIconData.byteLength) + ') · will override auto-generated';
+
+      toast('Icon loaded: ' + file.name, 'ok');
+    } catch (err) {
+      toast('Failed to read icon: ' + err.message, 'err');
+    }
+    e.target.value = '';
+  });
+}
+
+function clearCustomIcon() {
+  customIconData = null;
+  customIconMime = null;
+  document.getElementById('iconPreview').innerHTML = '<div class="icon-placeholder">📱</div>';
+  document.getElementById('clearIconBtn').style.display = 'none';
+  document.getElementById('iconHint').textContent = 'PNG recommended · 192×192 or larger · Square aspect ratio';
+  toast('Custom icon removed', 'ok');
+}
+
+
 // ─── init ──────────────────────────────────────────────────────────────────
 setupFilePicker();
 setupMediaPicker();
+setupIconPicker();
 checkHealth().then(() => refreshHistory());
 setInterval(checkHealth, 30000);
 </script>
