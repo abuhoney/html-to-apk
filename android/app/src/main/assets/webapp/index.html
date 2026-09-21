@@ -370,6 +370,19 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   margin-top:8px;font-size:10px;color:var(--fg3);line-height:1.5;
 }
 
+/* Hierarchical file folders */
+.media-folder-header{
+  padding:8px 12px;margin-top:8px;margin-bottom:4px;
+  background:var(--surface2);border-radius:8px;
+  font-size:12px;font-weight:600;color:var(--accent);
+  cursor:pointer;user-select:none;
+  display:flex;align-items:center;gap:4px;
+  border:1px solid rgba(88,166,255,.15);
+}
+.media-folder-header:active{background:var(--surface3)}
+.media-folder-items.collapsed{display:none}
+.media-folder-items{padding-left:8px}
+
 </style>
 </head>
 <body>
@@ -386,17 +399,13 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.4.1</div>
+    <div id="versionTag">v1.5.0</div>
   </div>
 </div>
 
 <main>
 
-<div class="card">
-  <h3>Backend Status <span class="badge" id="backendBadge">checking…</span></h3>
-  <div class="backend-url" id="backendUrlDisplay">Loading…</div>
-</div>
-
+<!-- Backend status is shown in the header health dot only (URL hidden for security) -->
 <div class="card" id="pickCard">
   <h3>① Pick HTML File <span class="badge" id="fileBadge">none</span></h3>
   <div class="file-drop" id="fileDrop">
@@ -559,30 +568,21 @@ function escapeHtml(s) {
 
 // ─── health check ──────────────────────────────────────────────────────────
 async function checkHealth() {
-  $("backendUrlDisplay").textContent = BACKEND_URL;
+  // Backend URL is hidden from UI for security — only health status shown in header
   try {
     const r = await fetch(BACKEND_URL + "/api/health", { method: "GET" });
     const d = await r.json();
     if (d.status === "ok") {
       $("healthDot").className = "health-dot";
       $("healthText").textContent = "Backend online · v" + d.version;
-      $("backendBadge").textContent = "online";
-      $("backendBadge").style.background = "var(--green)";
-      $("backendBadge").style.color = "#fff";
     } else {
       $("healthDot").className = "health-dot bad";
       $("healthText").textContent = "Backend error";
-      $("backendBadge").textContent = "error";
-      $("backendBadge").style.background = "var(--red)";
-      $("backendBadge").style.color = "#fff";
     }
     return d;
   } catch (e) {
     $("healthDot").className = "health-dot bad";
     $("healthText").textContent = "Backend offline";
-    $("backendBadge").textContent = "offline";
-    $("backendBadge").style.background = "var(--red)";
-    $("backendBadge").style.color = "#fff";
     return null;
   }
 }
@@ -780,6 +780,13 @@ async function buildApk() {
     fd.append("app_name", appName);
     fd.append("version_name", ver);
 
+    // Attach custom icon if present (works for ALL build types: HTML + Media + Any/ZIP)
+    if (customIconData) {
+      const iconBlob = new Blob([customIconData], {type: 'image/png'});
+      fd.append("icon_file", iconBlob, 'app_icon.png');
+      log('Custom icon attached (' + fmtSize(customIconData.byteLength) + ')');
+    }
+
     setProgress(15, "Server is compiling (aapt2 + javac + d8 + zipalign + apksigner)…");
     log("✓ Upload complete, server building (~50s on free tier)…");
 
@@ -803,14 +810,25 @@ async function buildApk() {
     if (d.success) {
       STATE.lastResult = d;
       showResult(d, true);
-      log("✅ Built in " + (d.duration_sec || "?") + "s · " + fmtSize(d.apk_size));
+      log("Built in " + (d.duration_sec || "?") + "s - " + fmtSize(d.apk_size));
       setProgress(100, "Done!");
       setTimeout(() => setProgress(null), 1200);
-      toast("✓ APK built successfully", "ok");
+      toast("APK built successfully", "ok");
+      // Save to local build history (survives app restarts + network interruptions)
+      if (d.apk_url) {
+        addLocalBuild({
+          name: d.apk_name || 'app.apk',
+          function: d.function || '',
+          size: d.apk_size || 0,
+          modified: new Date().toISOString(),
+          url: BACKEND_URL + d.apk_url,
+          source: 'server'
+        });
+      }
       // Refresh history now that the build is done
       setTimeout(refreshHistory, 500);
     } else {
-      log("✗ " + (d.error || "build failed"));
+      log("Failed: " + (d.error || "build failed"));
       showResult(d, false);
       setProgress(null);
       toast("Build failed", "err");
@@ -872,35 +890,79 @@ function resetBuilder() {
 }
 
 // ─── history ────────────────────────────────────────────────────────────────
+// ─── Build History with localStorage persistence ────────────────────────
+// Builds are saved locally so history survives app restarts + network interruptions
+function getLocalBuildHistory() {
+  try { return JSON.parse(localStorage.getItem('buildHistory') || '[]'); }
+  catch(e) { return []; }
+}
+function saveLocalBuildHistory(history) {
+  try { localStorage.setItem('buildHistory', JSON.stringify(history.slice(0, 50))); }
+  catch(e) {}
+}
+function addLocalBuild(build) {
+  const history = getLocalBuildHistory();
+  // Avoid duplicates by URL
+  if (!history.find(b => b.url === build.url)) {
+    history.unshift(build);
+    saveLocalBuildHistory(history);
+  }
+}
+
 async function refreshHistory() {
+  // Merge local (persisted) history + server history
+  let localHistory = getLocalBuildHistory();
+  let serverApks = [];
   try {
     const r = await fetch(BACKEND_URL + "/api/apks");
     const d = await r.json();
-    const apks = d.apks || [];
-    $("historyCount").textContent = apks.length;
-    $("buildsCount").textContent = apks.length + " build" + (apks.length === 1 ? "" : "s");
-    if (apks.length === 0) {
-      $("historyList").innerHTML = '<div class="history-empty">No APKs built yet — pick an HTML file above to start.</div>';
-      return;
-    }
-    $("historyList").innerHTML = apks.slice().reverse().map(a => {
-      const dlUrl = BACKEND_URL + "/download/" + a.function + "/" + encodeURIComponent(a.name);
-      const dateStr = new Date(a.modified).toLocaleString();
-      return '<div class="history-item">' +
-        '<div class="info">' +
-          '<div class="name">' + escapeHtml(a.name) + '</div>' +
-          '<div class="meta">' +
-            '<span class="pkg">' + escapeHtml(a.function) + '</span>' +
-            '<span class="size">' + fmtSize(a.size) + '</span>' +
-            '<span>· ' + dateStr + '</span>' +
-          '</div>' +
-        '</div>' +
-        '<button class="dl" onclick="downloadHistory(\'' + dlUrl.replace(/'/g, "\\'") + '\', \'' + escapeHtml(a.name).replace(/'/g, "\\'") + '\')">Download</button>' +
-      '</div>';
-    }).join("");
-  } catch (e) {
-    console.warn("history fetch failed", e);
+    serverApks = d.apks || [];
+  } catch(e) {
+    // Network error — show local history only (survives offline)
   }
+
+  // Convert server APKs to unified format
+  const serverBuilds = serverApks.map(a => ({
+    name: a.name,
+    function: a.function,
+    size: a.size,
+    modified: a.modified,
+    url: BACKEND_URL + '/download/' + a.function + '/' + encodeURIComponent(a.name),
+    source: 'server'
+  }));
+
+  // Merge: local builds first, then server-only builds
+  const serverUrls = new Set(serverBuilds.map(b => b.url));
+  const localOnly = localHistory.filter(b => !serverUrls.has(b.url));
+  const apks = [...localOnly, ...serverBuilds];
+
+  // Update local history with server builds
+  for (const sb of serverBuilds) {
+    addLocalBuild(sb);
+  }
+
+  $("historyCount").textContent = apks.length;
+  $("buildsCount").textContent = apks.length + " build" + (apks.length === 1 ? "" : "s");
+  if (apks.length === 0) {
+    $("historyList").innerHTML = '<div class="history-empty">No APKs built yet — pick an HTML file above to start.</div>';
+    return;
+  }
+  $("historyList").innerHTML = apks.map(a => {
+    const dlUrl = a.url;
+    const dateStr = a.modified ? new Date(a.modified).toLocaleString() : 'Local';
+    const sourceBadge = a.source === 'server' ? '🌐' : '📱';
+    return '<div class="history-item">' +
+      '<div class="info">' +
+        '<div class="name">' + sourceBadge + ' ' + escapeHtml(a.name) + '</div>' +
+        '<div class="meta">' +
+          '<span class="pkg">' + escapeHtml(a.function || '') + '</span>' +
+          '<span class="size">' + fmtSize(a.size) + '</span>' +
+          '<span>· ' + dateStr + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<button class="dl" onclick="downloadHistory(\'' + dlUrl.replace(/'/g, "\\'") + '\', \'' + escapeHtml(a.name).replace(/'/g, "\\'") + '\')">Download</button>' +
+    '</div>';
+  }).join("");
 }
 
 function downloadHistory(url, name) {
