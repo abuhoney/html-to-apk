@@ -399,7 +399,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.5.0</div>
+    <div id="versionTag">v1.6.0</div>
   </div>
 </div>
 
@@ -423,30 +423,11 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 </div>
 
 <div class="card" id="mediaPickCard">
-  <h3>①½ Pick Media File <span class="badge" id="mediaBadge">none</span></h3>
+  <h3>①½ Pick App Type & Files <span class="badge" id="mediaBadge">loading…</span></h3>
 
-  <!-- Horizontal scroll for media type picker -->
-  <div class="media-type-scroll">
-    <div class="media-type-card" data-type="music" onclick="selectMediaType('music')">
-      <div class="media-type-icon">🎵</div>
-      <div class="media-type-label">Music</div>
-    </div>
-    <div class="media-type-card" data-type="video" onclick="selectMediaType('video')">
-      <div class="media-type-icon">🎬</div>
-      <div class="media-type-label">Video</div>
-    </div>
-    <div class="media-type-card" data-type="photo" onclick="selectMediaType('photo')">
-      <div class="media-type-icon">📷</div>
-      <div class="media-type-label">Photo</div>
-    </div>
-    <div class="media-type-card" data-type="zip" onclick="selectMediaType('zip')">
-      <div class="media-type-icon">📦</div>
-      <div class="media-type-label">ZIP to APK</div>
-    </div>
-    <div class="media-type-card" data-type="any" onclick="selectMediaType('any')">
-      <div class="media-type-icon">📁</div>
-      <div class="media-type-label">Any Files</div>
-    </div>
+  <!-- Dynamic media type picker — buttons loaded from /api/app-types -->
+  <div class="media-type-scroll" id="mediaTypeScroll">
+    <div class="media-type-card" style="opacity:.5"><div class="media-type-icon">⏳</div><div class="media-type-label">Loading…</div></div>
   </div>
 
   <!-- Drop zone (enabled after type selection) -->
@@ -980,31 +961,69 @@ function downloadHistory(url, name) {
 // ─── Media File Picker ──────────────────────────────────────────────────────
 let selectedMediaType = null;
 let mediaItems = []; // [{file, name, size, type, uint8}]
+let appTypesRegistry = null; // Loaded from /api/app-types
+
+// Load app types from backend registry (dynamic — no code changes needed for new types)
+async function loadAppTypes() {
+  try {
+    const r = await fetch(BACKEND_URL + "/api/app-types");
+    const data = await r.json();
+    appTypesRegistry = data.types || {};
+    renderAppTypeCards();
+  } catch (e) {
+    console.warn("Failed to load app types, using fallback:", e);
+    // Fallback to hardcoded types if server is unreachable
+    appTypesRegistry = {
+      music: {emoji:"🎵",label:"Music",accepts:"audio/*,.mp3,.wav,.ogg,.m4a",multiple:true},
+      video: {emoji:"🎬",label:"Video",accepts:"video/*,.mp4,.mkv,.webm,.mov",multiple:true},
+      photo: {emoji:"📷",label:"Photo",accepts:"image/*,.jpg,.png,.gif,.webp",multiple:true},
+      zip: {emoji:"📦",label:"ZIP to APK",accepts:".zip,application/zip",multiple:false},
+      any: {emoji:"📁",label:"Any Files",accepts:"*/*",multiple:true},
+    };
+    renderAppTypeCards();
+  }
+}
+
+function renderAppTypeCards() {
+  const scroll = document.getElementById('mediaTypeScroll');
+  if (!scroll || !appTypesRegistry) return;
+  const types = Object.entries(appTypesRegistry);
+  scroll.innerHTML = types.map(([key, cfg]) => {
+    return '<div class="media-type-card" data-type="' + key + '" onclick="selectMediaType(\'' + key + '\')">' +
+      '<div class="media-type-icon">' + (cfg.emoji || '📦') + '</div>' +
+      '<div class="media-type-label">' + escapeHtml(cfg.label || key) + '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('mediaBadge').textContent = types.length + ' types';
+}
 
 function selectMediaType(type) {
   selectedMediaType = type;
   document.querySelectorAll('.media-type-card').forEach(c => {
     c.classList.toggle('selected', c.dataset.type === type);
   });
-  const labels = {
-    music: 'Music (.mp3, .wav, .ogg, .m4a)',
-    video: 'Video (.mp4, .mkv, .webm, .mov)',
-    photo: 'Photo (.jpg, .png, .gif, .webp)',
-    zip: 'ZIP archive (.zip) — contents become the app',
-    any: 'Any files (.pdf, .doc, .txt, .csv, .html, etc.)'
-  };
-  const accepts = {
-    music: 'audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,.wma',
-    video: 'video/*,.mp4,.mkv,.webm,.mov,.avi,.flv,.wmv,.m4v,.3gp',
-    photo: 'image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.heic',
-    zip: '.zip,application/zip,application/x-zip-compressed',
-    any: '*/*'
-  };
-  document.getElementById('mediaDropLabel').innerHTML = 'Tap to pick <b>' + labels[type] + '</b> files';
-  document.getElementById('mediaDropHint').textContent = type === 'zip' ? 'Single ZIP file' : 'Multiple files allowed';
-  document.getElementById('mediaInput').setAttribute('accept', accepts[type]);
-  document.getElementById('mediaDrop').classList.add('enabled');
-  toast('Selected: ' + type, 'ok');
+
+  // Get config from registry (dynamic — supports any type without code changes)
+  const cfg = appTypesRegistry ? appTypesRegistry[type] : null;
+  if (cfg) {
+    const label = cfg.label || type;
+    const accepts = cfg.accepts || '*/*';
+    const multiple = cfg.multiple !== false;
+    document.getElementById('mediaDropLabel').innerHTML = 'Tap to pick <b>' + escapeHtml(label) + '</b> files';
+    document.getElementById('mediaDropHint').textContent = multiple ? 'Multiple files allowed' : 'Single file only';
+    document.getElementById('mediaInput').setAttribute('accept', accepts);
+    document.getElementById('mediaInput').setAttribute('multiple', multiple ? 'multiple' : '');
+    document.getElementById('mediaDrop').classList.add('enabled');
+    toast('Selected: ' + label, 'ok');
+  } else {
+    // Fallback for unknown types
+    document.getElementById('mediaDropLabel').innerHTML = 'Tap to pick <b>' + type + '</b> files';
+    document.getElementById('mediaDropHint').textContent = 'Multiple files allowed';
+    document.getElementById('mediaInput').setAttribute('accept', '*/*');
+    document.getElementById('mediaInput').setAttribute('multiple', 'multiple');
+    document.getElementById('mediaDrop').classList.add('enabled');
+    toast('Selected: ' + type, 'ok');
+  }
 }
 
 function setupMediaPicker() {
@@ -1413,6 +1432,7 @@ function clearCustomIcon() {
 setupFilePicker();
 setupMediaPicker();
 setupIconPicker();
+loadAppTypes(); // Load dynamic app types from /api/app-types
 checkHealth().then(() => refreshHistory());
 setInterval(checkHealth, 30000);
 </script>
