@@ -399,7 +399,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.6.0</div>
+    <div id="versionTag">v1.6.1</div>
   </div>
 </div>
 
@@ -1059,8 +1059,10 @@ function setupMediaPicker() {
 
 async function handleMediaFiles(fileList) {
   for (const file of fileList) {
-    // Validate file type matches selectedMediaType (skip validation for 'zip' and 'any')
-    if (selectedMediaType !== 'zip' && selectedMediaType !== 'any') {
+    // Validate file type ONLY for the 3 hardcoded media types (music/video/photo)
+    // All other types (zip, any, supermarket, hospital, pharmacy, etc.) accept any file
+    // matching their "accepts" attribute from app_types.json
+    if (selectedMediaType === 'music' || selectedMediaType === 'video' || selectedMediaType === 'photo') {
       const typeMap = {music: /audio\//i, video: /video\//i, photo: /image\//i};
       const extMap = {
         music: /\.(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/i,
