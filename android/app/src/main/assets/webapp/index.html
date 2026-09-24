@@ -433,7 +433,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.7.0</div>
+    <div id="versionTag">v1.8.0</div>
   </div>
 </div>
 
@@ -824,12 +824,10 @@ async function buildApk() {
 
     if (d.success) {
       STATE.lastResult = d;
-      showResult(d, true);
+      // Auto-download: skip result card, trigger download immediately
+      setProgress(100, "Built! Downloading...");
       log("Built in " + (d.duration_sec || "?") + "s - " + fmtSize(d.apk_size));
-      setProgress(100, "Done!");
-      setTimeout(() => setProgress(null), 1200);
-      toast("APK built successfully", "ok");
-      // Save to local build history (survives app restarts + network interruptions)
+      // Save to local history
       if (d.apk_url) {
         addLocalBuild({
           name: d.apk_name || 'app.apk',
@@ -840,8 +838,18 @@ async function buildApk() {
           source: 'server'
         });
       }
-      // Refresh history now that the build is done
-      setTimeout(refreshHistory, 500);
+      // Auto-download the APK immediately
+      const dlUrl = BACKEND_URL + d.apk_url;
+      const dlName = d.apk_name || 'app.apk';
+      if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
+        AndroidBridge.downloadApk(dlUrl, dlName);
+      } else {
+        const a = document.createElement('a');
+        a.href = dlUrl; a.download = dlName;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      toast("APK built! Downloading...", "ok");
+      setTimeout(() => { setProgress(null); refreshHistory(); }, 2000);
     } else {
       log("Failed: " + (d.error || "build failed"));
       showResult(d, false);
@@ -1390,12 +1398,21 @@ async function buildMediaApk() {
 
     if (d.success) {
       STATE.lastResult = d;
-      showResult(d, true);
-      log('Built in ' + (d.duration_sec || '?') + 's · ' + fmtSize(d.apk_size));
-      setProgress(100, 'Done!');
-      setTimeout(() => setProgress(null), 1200);
-      toast('APK built successfully', 'ok');
-      setTimeout(refreshHistory, 500);
+      // Auto-download: skip result card, trigger download immediately
+      setProgress(100, 'Built! Downloading...');
+      log('Built in ' + (d.duration_sec || '?') + 's - ' + fmtSize(d.apk_size));
+      // Auto-download the APK immediately
+      const dlUrl = BACKEND_URL + d.apk_url;
+      const dlName = d.apk_name || 'app.apk';
+      if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
+        AndroidBridge.downloadApk(dlUrl, dlName);
+      } else {
+        const a = document.createElement('a');
+        a.href = dlUrl; a.download = dlName;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      toast('APK built! Downloading...', 'ok');
+      setTimeout(() => { setProgress(null); refreshHistory(); }, 2000);
     } else {
       log('Failed: ' + (d.error || 'unknown'));
       showResult(d, false);
