@@ -350,7 +350,41 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 }
 .icon-preview img{
   width:100%;height:100%;object-fit:cover;border-radius:12px;
+  background:var(--surface2);
 }
+.icon-preview img.contain{object-fit:contain}
+
+/* Editable file fields */
+.media-item-edit{
+  display:flex;flex-direction:column;gap:4px;margin-top:6px;
+  padding:6px;background:var(--bg);border-radius:6px;border:1px solid var(--border);
+}
+.media-item-edit input{
+  background:var(--surface2);color:var(--fg);border:1px solid var(--border);
+  border-radius:4px;padding:5px 8px;font-size:11px;font-family:inherit;width:100%;
+}
+.media-item-edit input:focus{outline:none;border-color:var(--accent)}
+.media-item-edit label{font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px}
+.media-item-thumb{
+  width:32px;height:32px;border-radius:6px;flex-shrink:0;overflow:hidden;
+  border:1px solid var(--border);cursor:pointer;position:relative;
+  background:var(--surface2);display:flex;align-items:center;justify-content:center;
+}
+.media-item-thumb img{width:100%;height:100%;object-fit:cover}
+.media-item-thumb .add-thumb{font-size:14px;opacity:.5}
+
+/* Resume build button */
+.resume-build{
+  display:none;margin-top:8px;padding:10px;
+  background:rgba(250,204,21,.1);border:1px solid var(--gold);
+  border-radius:8px;text-align:center;
+}
+.resume-build.show{display:block;animation:fadeIn .2s}
+.resume-build button{
+  background:var(--gold);color:#000;border:none;padding:8px 20px;
+  border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;
+}
+.resume-build button:active{transform:scale(.97)}
 .icon-placeholder{
   font-size:28px;opacity:.5;
 }
@@ -399,7 +433,7 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
   <div class="header-right">
     <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.6.1</div>
+    <div id="versionTag">v1.7.0</div>
   </div>
 </div>
 
@@ -1144,36 +1178,82 @@ function renderMediaItems() {
   }
   listEl.style.display = 'block';
 
-  const typeIconMap = {music: '🎵', video: '🎬', photo: '📷', zip: '📦', any: '📁'};
-  const totalSize = mediaItems.reduce((s, i) => s + i.size, 0);
+  const typeIconMap = {music: '\u{1F3B5}', video: '\u{1F3AC}', photo: '\u{1F4F7}', zip: '\u{1F4E6}', any: '\u{1F4C1}'};
+  const totalSize = mediaItems.reduce((s, i) => s + (i.size || 0), 0);
 
   header.textContent = 'Selected files (' + mediaItems.length + ')';
   document.getElementById('mediaBadge').textContent = mediaItems.length + ' ' + selectedMediaType;
 
   list.innerHTML = mediaItems.map((item, i) => {
-    // Per-file icon based on extension
     const ext = (item.name.match(/\.([a-z0-9]+)$/i) || [,''])[1].toLowerCase();
-    let icon = typeIconMap[selectedMediaType] || '📁';
-    if (selectedMediaType === 'any' || selectedMediaType === 'zip') {
-      if (/^(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/.test(ext)) icon = '🎵';
-      else if (/^(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp)$/.test(ext)) icon = '🎬';
-      else if (/^(jpe?g|png|gif|webp|bmp|svg|heic)$/.test(ext)) icon = '🖼️';
-      else if (/^(pdf)$/.test(ext)) icon = '📄';
-      else if (/^(txt|md|csv|json|xml|html?|css|js)$/.test(ext)) icon = '📝';
-      else if (/^(zip|rar|7z|tar|gz)$/.test(ext)) icon = '📦';
-      else icon = '📎';
+    let icon = typeIconMap[selectedMediaType] || '\u{1F4C1}';
+    if (selectedMediaType === 'any' || selectedMediaType === 'zip' || !typeIconMap[selectedMediaType]) {
+      if (/^(mp3|wav|ogg|m4a|aac|flac|opus|wma)$/.test(ext)) icon = '\u{1F3B5}';
+      else if (/^(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp)$/.test(ext)) icon = '\u{1F3AC}';
+      else if (/^(jpe?g|png|gif|webp|bmp|svg|heic)$/.test(ext)) icon = '\u{1F5BC}\u{FE0F}';
+      else if (/^(pdf)$/.test(ext)) icon = '\u{1F4C4}';
+      else if (/^(txt|md|csv|json|xml|html?|css|js)$/.test(ext)) icon = '\u{1F4DD}';
+      else if (/^(zip|rar|7z|tar|gz)$/.test(ext)) icon = '\u{1F4E6}';
+      else icon = '\u{1F4CE}';
     }
+    const editName = item.editName || item.name.replace(/\.[^.]+$/, '');
+    const editPath = item.editPath || '';
+    const thumbHtml = item.thumbData
+      ? '<img src="' + item.thumbData + '" alt="thumb">'
+      : '<div class="add-thumb">\u{1F5BC}\u{FE0F}</div>';
+
     return '<div class="media-item">' +
       '<div class="media-item-icon">' + icon + '</div>' +
       '<div class="media-item-info">' +
         '<div class="media-item-name">' + escapeHtml(item.name) + '</div>' +
-        '<div class="media-item-meta">' + fmtSize(item.size) + ' · ' + item.type + '</div>' +
+        '<div class="media-item-meta">' + fmtSize(item.size) + ' - ' + item.type + '</div>' +
+        '<div class="media-item-edit">' +
+          '<label>Name</label>' +
+          '<input type="text" value="' + escapeHtml(editName) + '" placeholder="Display name" onchange="updateMediaItem(' + i + ',\'name\',this.value)">' +
+          '<label>Path / Folder</label>' +
+          '<input type="text" value="' + escapeHtml(editPath) + '" placeholder="e.g. medical/cardiac" onchange="updateMediaItem(' + i + ',\'path\',this.value)">' +
+        '</div>' +
       '</div>' +
-      '<button class="media-item-remove" onclick="removeMediaItem(' + i + ')">×</button>' +
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:4px">' +
+        '<div class="media-item-thumb" onclick="pickFileThumb(' + i + ')">' + thumbHtml + '</div>' +
+        '<button class="media-item-remove" onclick="removeMediaItem(' + i + ')">x</button>' +
+      '</div>' +
     '</div>';
   }).join('');
 
-  stats.textContent = 'Total: ' + fmtSize(totalSize) + ' · ' + mediaItems.length + ' file' + (mediaItems.length === 1 ? '' : 's');
+  stats.textContent = 'Total: ' + fmtSize(totalSize) + ' - ' + mediaItems.length + ' file' + (mediaItems.length === 1 ? '' : 's');
+}
+
+function updateMediaItem(i, field, value) {
+  if (i < 0 || i >= mediaItems.length) return;
+  if (field === 'name') mediaItems[i].editName = value;
+  if (field === 'path') mediaItems[i].editPath = value;
+}
+
+function pickFileThumb(i) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const pngBlob = await convertImageToPng(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        mediaItems[i].thumbData = reader.result;
+        renderMediaItems();
+        toast('Thumbnail set for file ' + (i+1), 'ok');
+      };
+      reader.readAsDataURL(pngBlob);
+    } catch(err) {
+      toast('Failed to set thumbnail: ' + err.message, 'err');
+    }
+  };
+  document.body.appendChild(input);
+  input.click();
+  document.body.removeChild(input);
 }
 
 function removeMediaItem(i) {
@@ -1331,6 +1411,24 @@ async function buildMediaApk() {
 
   document.getElementById('buildBtn').disabled = false;
   document.getElementById('buildBtnText').textContent = 'Build APK';
+
+  // Show resume option if build failed
+  if (!success && STATE.lastResult) {
+    const resumeEl = document.querySelector('.resume-build') || (() => {
+      const el = document.createElement('div');
+      el.className = 'resume-build';
+      document.getElementById('buildBtn').parentElement.appendChild(el);
+      return el;
+    })();
+    resumeEl.innerHTML = '<p style="font-size:11px;color:var(--fg2);margin-bottom:8px">Build interrupted. Your files are saved.</p>' +
+      '<button onclick="retryBuild()">Retry Build</button>';
+    resumeEl.classList.add('show');
+  }
+}
+
+function retryBuild() {
+  document.querySelector('.resume-build')?.classList.remove('show');
+  buildApk();
 }
 
 
