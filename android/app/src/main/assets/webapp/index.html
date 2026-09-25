@@ -519,6 +519,9 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   <button class="btn btn-primary" id="buildBtn" onclick="buildApk()" disabled>
     <span id="buildBtnText">Pick HTML first</span>
   </button>
+  <button class="btn btn-alt" id="buildV2Btn" onclick="buildV2Apk()" disabled style="margin-top:8px;display:block">
+    <span id="buildV2BtnText">⚡ Build v2 APK (5-char IDs + RBAC + Offline)</span>
+  </button>
   <div class="progress" id="progress">
     <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
     <div class="progress-text">
@@ -740,9 +743,12 @@ function validate() {
   const hasMedia = mediaItems.length > 0;
   const hasInput = (hasHTML || hasMedia) && $("appName").value.trim().length > 0;
   $("buildBtn").disabled = !hasInput;
+  $("buildV2Btn").disabled = !hasInput;  // v2 button follows same enable logic
   if (hasInput) {
     if (hasMedia) $("buildBtnText").textContent = "Build Media APK";
     else $("buildBtnText").textContent = "Build APK";
+    if (hasMedia) $("buildV2BtnText").textContent = "⚡ Build v2 APK (5-char IDs + RBAC + Offline)";
+    else $("buildV2BtnText").textContent = "⚡ Build v2 APK (parse HTML fields dynamically)";
   } else if (!hasHTML && !hasMedia) {
     $("buildBtnText").textContent = "Pick HTML or Media first";
   } else {
@@ -1290,6 +1296,169 @@ function uint8ToBase64(uint8) {
     result += String.fromCharCode.apply(null, chunk);
   }
   return btoa(result);
+}
+
+// ─── build v2 APK (full v2 engine: 5-char IDs + RBAC + Offline Sync) ─────
+async function buildV2Apk() {
+  let appName = $("appName").value.trim();
+  if (!appName) {
+    toast("App name required", "err");
+    $("appName").focus();
+    return;
+  }
+  const ver = $("version").value.trim() || "1.0.0";
+  const hasHTML = STATE.htmlContent || STATE.fileObj;
+  const hasMedia = mediaItems.length > 0;
+
+  if (!hasHTML && !hasMedia) {
+    toast("Pick HTML or media files first", "err");
+    return;
+  }
+
+  $("buildV2Btn").disabled = true;
+  $("buildBtn").disabled = true;
+  $("buildV2BtnText").textContent = "Building v2…";
+  $("resultCard").classList.remove("show");
+  $("buildLog").textContent = "";
+  setProgress(5, "Preparing v2 bundle…");
+  log("→ POST " + BACKEND_URL + "/api/build-v2-apk");
+  log("⚙ v2 engine: data_analyzer → 10 builders → template_renderer → native_bridge → apk_builder");
+
+  try {
+    const fd = new FormData();
+
+    // Build bundle JSON (same format as build-media-apk but to /api/build-v2-apk)
+    let files = [];
+    let totalSize = 0;
+
+    if (hasMedia) {
+      // Media mode: bundle all media files
+      setProgress(10, "Encoding " + mediaItems.length + " media files to base64…");
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i];
+        totalSize += item.size;
+        const base64 = uint8ToBase64(item.uint8);
+        const path = item.name.replace(/[^A-Za-z0-9._-]/g, "_");
+        files.push({
+          path: path,
+          original_name: item.name,
+          mime: item.type,
+          size: item.size,
+          content_base64: base64,
+        });
+        setProgress(10 + Math.floor((i / mediaItems.length) * 25), "Encoded " + (i + 1) + "/" + mediaItems.length);
+        log("  " + (i + 1) + ". " + path + " (" + fmtSize(item.size) + ")");
+        await new Promise(r => setTimeout(r, 0));
+      }
+    } else if (hasHTML) {
+      // HTML mode: bundle the HTML file as a single file
+      setProgress(10, "Encoding HTML file to base64…");
+      const htmlContent = STATE.htmlContent || "";
+      const htmlBytes = new TextEncoder().encode(htmlContent);
+      totalSize = htmlBytes.length;
+      const base64 = uint8ToBase64(htmlBytes);
+      files.push({
+        path: STATE.fileName || "app.html",
+        original_name: STATE.fileName || "app.html",
+        mime: "text/html",
+        size: totalSize,
+        content_base64: base64,
+      });
+      log("  1. " + (STATE.fileName || "app.html") + " (" + fmtSize(totalSize) + ")");
+    }
+
+    const bundle = {
+      __meta: {
+        media_type: selectedMediaType || "any",
+        app_name: appName,
+        total_files: files.length,
+        total_size_bytes: totalSize,
+      },
+      files: files,
+    };
+
+    const bundleBlob = new Blob([JSON.stringify(bundle)], {type: "application/json"});
+    fd.append("bundle_file", bundleBlob, "v2_bundle.json");
+    fd.append("app_name", appName);
+    fd.append("media_type", selectedMediaType || "any");
+    fd.append("version_name", ver);
+
+    // Custom icon
+    if (customIconData) {
+      const iconBlob = new Blob([customIconData], {type: "image/png"});
+      fd.append("icon_file", iconBlob, "app_icon.png");
+      log("Custom icon attached (" + fmtSize(customIconData.byteLength) + ")");
+    }
+
+    setProgress(45, "Server running v2 pipeline (data_analyzer + 10 builders + template + native_bridge)…");
+    log("Server building v2 APK (~60s on free tier)…");
+
+    let fakePct = 50;
+    const progressInterval = setInterval(() => {
+      if (fakePct < 90) {
+        fakePct += 1;
+        setProgress(fakePct, "v2 engine compiling (" + fakePct + "%)…");
+      }
+    }, 1200);
+
+    const r = await fetch(BACKEND_URL + "/api/build-v2-apk", {
+      method: "POST", body: fd
+    });
+    clearInterval(progressInterval);
+
+    const d = await r.json();
+    setProgress(95, "Finalizing…");
+
+    if (d.success) {
+      STATE.lastResult = d;
+      setProgress(100, "v2 APK built! Downloading…");
+      log("✓ v2 APK built in " + (d.duration_sec || "?") + "s - " + fmtSize(d.apk_size));
+      // Show v2 engine metadata in log
+      if (d.v2_engine) {
+        const v2 = d.v2_engine;
+        log("  v2_engine: " + v2.ids_count + " IDs, " + v2.datasets_count + " datasets, " + v2.items_count + " items");
+        log("  builders_run: " + v2.builders_run + " | native_bridge: " + fmtSize(v2.native_bridge_bytes) + " | rbac: " + fmtSize(v2.rbac_engine_bytes) + " | offline: " + fmtSize(v2.offline_sync_bytes));
+        log("  template_size: " + fmtSize(v2.template_size_bytes) + " | engine: " + v2.engine_version);
+      }
+      // Save to local history
+      if (d.apk_url) {
+        addLocalBuild({
+          name: d.apk_name || "app.apk",
+          function: d.function || "",
+          size: d.apk_size || 0,
+          modified: new Date().toISOString(),
+          url: BACKEND_URL + d.apk_url,
+          source: "v2-engine"
+        });
+      }
+      // Auto-download
+      const dlUrl = BACKEND_URL + d.apk_url;
+      const dlName = d.apk_name || "app.apk";
+      if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
+        AndroidBridge.downloadApk(dlUrl, dlName);
+      } else {
+        const a = document.createElement("a");
+        a.href = dlUrl; a.download = dlName;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      toast("⚡ v2 APK built! Downloading…", "ok");
+      setTimeout(() => { setProgress(null); refreshHistory(); }, 2000);
+    } else {
+      log("✗ v2 build failed: " + (d.error || "unknown"));
+      showResult(d, false);
+      setProgress(null);
+      toast("v2 build failed", "err");
+    }
+  } catch (e) {
+    log("✗ Network error: " + e.message);
+    showResult({success: false, error: "Network error: " + e.message}, false);
+    setProgress(null);
+    toast("Network error", "err");
+  }
+
+  $("buildV2Btn").disabled = false;
+  $("buildBtn").disabled = false;
+  $("buildV2BtnText").textContent = "⚡ Build v2 APK (5-char IDs + RBAC + Offline)";
 }
 
 async function buildMediaApk() {
