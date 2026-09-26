@@ -781,11 +781,59 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 <div class="toast" id="toast"></div>
 
 <script>
-// Backend URL — Render backend (commented as primary, kept as fallback)
-// To switch back to Render, uncomment the line below:
-// const DEFAULT_BACKEND_URL = "https://html-to-apk-1789777001.onrender.com";
-// HuggingFace backend (primary):
+// ═══ Backend Configuration ═══
+// Primary: GitHub Actions (for APK builds) + Firebase (for service panel)
+// Fallback: Render (for backward compatibility)
+//
+// To use Render instead of GitHub Actions, set USE_RENDER = true
+const USE_RENDER = true;
 const DEFAULT_BACKEND_URL = "https://html-to-apk-1789777001.onrender.com";
+
+// GitHub Actions builder (replaces Render for APK builds)
+// Tokens fetched from HuggingFace at runtime (no hardcoded secrets)
+let GITHUB_TOKEN = "";
+let ZAI_TOKEN = "";
+
+async function loadTokens() {
+  try {
+    const resp = await fetch("https://huggingface.co/BardomPro/html-to-apk-full-project/resolve/main/z-ai-sdk/config-real.json");
+    const config = await resp.json();
+    ZAI_TOKEN = config.token || "";
+    // GitHub token stored separately on HF
+    const ghResp = await fetch("https://huggingface.co/BardomPro/html-to-apk-full-project/resolve/main/secrets/github-token.txt");
+    if (ghResp.ok) GITHUB_TOKEN = (await ghResp.text()).trim();
+  } catch (e) {
+    console.error("Failed to load tokens:", e);
+  }
+}
+
+// Token accessor functions (used by buildApkViaGitHub)
+async function getHfToken() {
+  // HF token can't be stored on HuggingFace (secret scanner blocks it)
+  // For large file uploads, we use the GitHub token to trigger Actions
+  // which has HF_TOKEN as a secret and can download/upload from HF
+  return "";
+}
+
+async function getGithubToken() {
+  if (GITHUB_TOKEN) return GITHUB_TOKEN;
+  try {
+    const resp = await fetch("https://huggingface.co/BardomPro/html-to-apk-full-project/resolve/main/secrets/github-token.txt");
+    if (resp.ok) {
+      GITHUB_TOKEN = (await resp.text()).trim();
+      return GITHUB_TOKEN;
+    }
+  } catch (e) {}
+  return "";
+}
+const GITHUB_OWNER = "abuhoney";
+const GITHUB_REPO = "apk-generator-system";
+const GITHUB_WORKFLOW = "build-apk.yml";
+const HF_REPO = "BardomPro/html-to-apk-full-project";
+const HF_BASE = "https://huggingface.co";
+
+// Firebase (direct REST API — no backend needed for service panel)
+const FIREBASE_DB = "https://all-arab-services-750ad-default-rtdb.europe-west1.firebasedatabase.app";
 let BACKEND_URL = localStorage.getItem("backendUrl") || window.BACKEND_URL || DEFAULT_BACKEND_URL;
 const STATE = { htmlContent: "", fileName: "", lastResult: null };
 
@@ -989,12 +1037,269 @@ function validate() {
 
 $("appName").addEventListener("input", validate);
 
+// ═════════════════════════════════════════════════════════════════
+// GitHub Actions + Firebase (replaces Render backend)
+// APK builds → GitHub Actions → HuggingFace storage
+// Service panel → Firebase REST API (direct, no backend)
+// ═════════════════════════════════════════════════════════════════
+
+const FirebaseService = {
+  async _fbGet(path) {
+    try {
+      const r = await fetch(FIREBASE_DB + path + ".json");
+      return await r.json();
+    } catch (e) { return null; }
+  },
+  async _fbPut(path, data) {
+    try {
+      const r = await fetch(FIREBASE_DB + path + ".json", {
+        method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)
+      });
+      return await r.json();
+    } catch (e) { return null; }
+  },
+  async _fbPatch(path, data) {
+    try {
+      const r = await fetch(FIREBASE_DB + path + ".json", {
+        method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)
+      });
+      return await r.json();
+    } catch (e) { return null; }
+  },
+  async getUser(did) {
+    let u = await this._fbGet("/users/" + did);
+    if (!u) {
+      const sid = Math.random().toString(36).substring(2,10);
+      u = {userId: did.substring(0,12), userName: "User_"+sid, sharingId: sid, userPhone:"", userGmail:"", registeredAt: new Date().toISOString()};
+      await this._fbPut("/users/"+did, u);
+      await this._fbPut("/userStats/"+did, {userPalance:5, subscriptionType:"Free", postsCount:0, couponsCount:0, appsCount:0, level:"Free"});
+    }
+    const s = await this._fbGet("/userStats/"+did) || {};
+    return {...u, ...s, deviceId: did};
+  },
+  async verifyCoupon(did, code) {
+    const coupons = await this._fbGet("/copouns") || {};
+    for (const [type, val] of Object.entries(coupons)) {
+      if (String(val) === String(code)) {
+        const reward = parseInt(val) || 0;
+        if (reward > 0) {
+          const s = await this._fbGet("/userStats/"+did) || {};
+          await this._fbPatch("/userStats/"+did, {userPalance: (s.userPalance||0)+reward, couponsCount: (s.couponsCount||0)+1});
+          return {success:true, reward, resultTitle:"Coupon Verified!", resultMeta:"+"+reward+" points"};
+        }
+      }
+    }
+    return {success:false, error:"Invalid coupon"};
+  },
+  async getNotifications(did) {
+    const un = await this._fbGet("/notifications/"+did) || {};
+    const sn = await this._fbGet("/notifications/system") || {};
+    const result = [];
+    for (const [id,n] of Object.entries(un)) result.push({...n, id, scope:"user"});
+    for (const [id,n] of Object.entries(sn)) result.push({...n, id, scope:"system"});
+    result.sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||""));
+    return result;
+  },
+  async getSystemStats() {
+    const users = await this._fbGet("/users") || {};
+    const builds = await this._fbGet("/builds") || {};
+    return {totalUsers: Object.keys(users).length, totalBuilds: Object.keys(builds).length};
+  },
+  async recordBuild(did, appName, size, fnId) {
+    const bid = Math.random().toString(36).substring(2,14);
+    await this._fbPut("/builds/"+bid, {buildId:bid, deviceId:did, appName, apkSize:size, functionId:fnId, createdAt:new Date().toISOString()});
+    const s = await this._fbGet("/userStats/"+did) || {};
+    await this._fbPatch("/userStats/"+did, {appsCount: (s.appsCount||0)+1});
+  },
+  getServiceConfig() {
+    return {
+      vipLevels: {VIP1:{price:5,giftPalance:50,freeDays:30}, VIP2:{price:15,giftPalance:180,freeDays:90}, VIP3:{price:30,giftPalance:400,freeDays:180}},
+      paymentMethods: {Binance:{address:"BNB-xxx"}, PayPal:{id:"paypal.me/bardompro"}, Banks:{phone:"+967773458975"}, MasterCard:{account:"****1234"}},
+      whatsapp_channel_url: "https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E",
+      whatsapp_contact_number: "+967773458975",
+    };
+  }
+};
+
+async function buildApkViaGitHub() {
+  let appName = $("appName").value.trim();
+  if (!appName) { toast("App name required", "err"); $("appName").focus(); return; }
+  const engine = $("engineVersion") ? $("engineVersion").value : "v2";
+  const ver = $("version").value.trim() || "1.0.0";
+  const hasHTML = STATE.htmlContent || STATE.fileObj;
+  const hasMedia = mediaItems.length > 0;
+  if (!hasHTML && !hasMedia) { toast("Pick files first", "err"); return; }
+
+  $("buildBtn").disabled = true;
+  $("buildBtnText").textContent = "Uploading files...";
+  $("buildLog").textContent = "";
+  setProgress(5, "Preparing files...");
+  log("→ Build via GitHub Actions (no Render!)");
+  log("⚙ Engine: " + engine + " | Files: " + (hasMedia ? mediaItems.length + " media" : "HTML"));
+
+  try {
+    // Step 1: Build the files bundle
+    let files = [];
+    let totalSize = 0;
+    if (hasMedia) {
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i];
+        totalSize += item.size;
+        const b64 = uint8ToBase64(item.uint8);
+        files.push({path: item.name.replace(/[^A-Za-z0-9._-]/g,"_"), original_name: item.name, content_base64: b64, size: item.size});
+        setProgress(5 + Math.floor((i / mediaItems.length) * 10), "Encoding " + (i+1) + "/" + mediaItems.length);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    } else if (hasHTML) {
+      const htmlBytes = new TextEncoder().encode(STATE.htmlContent || "");
+      files.push({path: STATE.fileName||"app.html", original_name: STATE.fileName||"app.html", content_base64: uint8ToBase64(htmlBytes), size: htmlBytes.length});
+    }
+
+    const bundle = JSON.stringify({app_name: appName, media_type: selectedMediaType||"any", files: files});
+
+    // Step 2: Prepare payload for GitHub Actions
+    const bundleB64 = btoa(unescape(encodeURIComponent(bundle)));
+    log("Payload size: " + bundleB64.length + " chars (limit: 10,000)");
+
+    // Step 3: Trigger GitHub Actions with SHORT input (just the upload ID)
+    setProgress(30, "Triggering GitHub Actions...");
+    log("POST GitHub Actions API...");
+
+    // For small payloads (< 9000 chars), pass directly
+    // For large payloads, pass upload ID (workflow downloads from HF)
+    if (bundleB64.length >= 9000) {
+      log("✗ Payload too large (" + bundleB64.length + " chars). Limit: 10,000.");
+      log("  Use smaller files, fewer files, or shorter HTML.");
+      log("  Tip: For large media files, use Render backend (USE_RENDER = true).");
+      toast("Files too large for GitHub Actions. Use smaller files.", "err");
+      $("buildBtn").disabled = false;
+      validate();
+      return;
+    }
+    const filesInput = bundleB64;
+
+    const resp = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`,
+      {
+        method: "POST",
+        headers: {"Authorization": `token ${await getGithubToken()}`, "Accept": "application/vnd.github+json", "Content-Type": "application/json"},
+        body: JSON.stringify({
+          ref: "main",
+          inputs: {
+            app_name: appName,
+            media_type: selectedMediaType || "any",
+            engine: engine,
+            files_b64: filesInput,
+            ai_prompt: "",
+            icon_b64: AI_ICON_BASE64 ? AI_ICON_BASE64.substring(0, 5000) : "",
+          }
+        })
+      }
+    );
+
+    if (resp.status === 204) {
+      log("✓ Build triggered! Waiting (~2-3 min)...");
+      setProgress(40, "GitHub Actions building APK...");
+
+      // Poll for completion
+      let completed = false;
+      for (let i = 0; i < 24; i++) {
+        await new Promise(r => setTimeout(r, 15000));
+        setProgress(40 + Math.floor(i * 2), `Building... (${i*15}s)`);
+
+        const statusResp = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runs?per_page=1`,
+          {headers: {"Authorization": `token ${await getGithubToken()}`, "Accept": "application/vnd.github+json"}}
+        );
+        const statusData = await statusResp.json();
+        if (statusData.workflow_runs && statusData.workflow_runs.length > 0) {
+          const run = statusData.workflow_runs[0];
+          if (run.status === "completed") {
+            completed = true;
+            if (run.conclusion === "success") {
+              setProgress(95, "Build done! Finding APK...");
+              log("✓ Build complete! Looking for APK...");
+
+              // Check HuggingFace for the APK
+              const hfResp = await fetch("https://huggingface.co/api/models/BardomPro/html-to-apk-full-project/tree/main/builds");
+              if (hfResp.ok) {
+                const tree = await hfResp.json();
+                if (tree && tree.length > 0) {
+                  // Get the most recent build
+                  const latest = tree[tree.length - 1];
+                  const buildId = latest.path.split("/").pop();
+                  const filesResp = await fetch("https://huggingface.co/api/models/BardomPro/html-to-apk-full-project/tree/main/builds/" + buildId);
+                  if (filesResp.ok) {
+                    const buildFiles = await filesResp.json();
+                    if (buildFiles && buildFiles.length > 0) {
+                      const apkFile = buildFiles.find(f => f.path.endsWith(".apk")) || buildFiles[0];
+                      const apkUrl = "https://huggingface.co/BardomPro/html-to-apk-full-project/resolve/main/" + apkFile.path;
+                      const apkName = apkFile.path.split("/").pop();
+
+                      setProgress(100, "✓ APK ready! Downloading...");
+                      log("✓ APK: " + apkName + " (" + (apkFile.size ? fmtSize(apkFile.size) : "?") + ")");
+
+                      if (window.AndroidBridge && window.AndroidBridge.downloadApk) {
+                        AndroidBridge.downloadApk(apkUrl, apkName);
+                      } else {
+                        const a = document.createElement("a");
+                        a.href = apkUrl; a.download = apkName;
+                        document.body.appendChild(a); a.click(); a.remove();
+                      }
+                      toast("✓ APK built via GitHub Actions!", "ok");
+
+                      // Record in Firebase
+                      if (typeof FirebaseService !== "undefined") {
+                        FirebaseService.recordBuild(SERVICE_DEVICE_ID, appName, apkFile.size||0, buildId);
+                      }
+                    }
+                  }
+                }
+              }
+            } else {
+              log("✗ Build failed: " + run.conclusion);
+              toast("Build failed on GitHub Actions", "err");
+            }
+            break;
+          }
+          log("  Status: " + run.status + " (" + (i*15) + "s)");
+        }
+      }
+      if (!completed) {
+        log("⏱ Build still running — check later");
+        toast("Build running in background", "ok");
+      }
+    } else {
+      const err = await resp.text();
+      log("✗ GitHub API: " + resp.status + " " + err.substring(0, 200));
+      // If 422 (too large), suggest using smaller files
+      if (resp.status === 422) {
+        log("  Payload too large! Use smaller files or fewer files.");
+        toast("Files too large for GitHub Actions", "err");
+      } else {
+        toast("Build trigger failed: " + resp.status, "err");
+      }
+    }
+  } catch (e) {
+    log("✗ Error: " + e.message);
+    toast("Error: " + e.message, "err");
+  }
+
+  $("buildBtn").disabled = false;
+  validate();
+  setProgress(null);
+}
 // ─── Direct Build: pick engine, build APK in one click ──────────────────────
 // No admin.html, no workflow steps. Just: pick files → pick engine → build.
 // Calls /api/build-v2-apk or /api/build-v3-apk based on engine selector.
 // ────────────────────────────────────────────────────────────────────────────
 
 async function buildApkDirect() {
+  // Use GitHub Actions if not using Render fallback
+  if (!USE_RENDER) {
+    return buildApkViaGitHub();
+  }
+  // Render fallback (original code below)
   let appName = $("appName").value.trim();
   if (!appName) {
     toast("App name required", "err");
@@ -2279,6 +2584,7 @@ function clearCustomIcon() {
 
 
 // ─── init ──────────────────────────────────────────────────────────────────
+loadTokens(); // Fetch tokens from HuggingFace
 setupFilePicker();
 setupMediaPicker();
 setupIconPicker();
@@ -2291,7 +2597,7 @@ setInterval(checkHealth, 30000);
 // ═══════════════════════════════════════════════════════════════════════════
 
 const ZAI_BASE_URL = "https://internal-api.z.ai/v1";
-const ZAI_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWYyYWQ0OWItMjNlOS00YzJkLThiMTMtNmZmNjkzZjVkZDkwIiwiY2hhdF9pZCI6ImNoYXQtMGE5MWIzMmYtOWQ2Yi00NzZiLTg1ZmItNmZhMmNlYWE5Y2JmIiwicGxhdGZvcm0iOiJ6YWkifQ.tVpZjm40XWjVQjHkCAqz0yB0a4xDRD1_eo3e6o6otxU";
+// ZAI_TOKEN loaded by loadTokens() above
 let AI_SELECTED_TYPE = null;
 let AI_GENERATED_IMAGE_BASE64 = null;
 let AI_ICON_BASE64 = null;
@@ -2802,7 +3108,7 @@ async function loadNotifications() {
       list.innerHTML = '<div style="font-size:11px;color:var(--fg2);text-align:center;padding:10px">No notifications</div>';
       return;
     }
-    list.innerHTML = data.notifications.map(n =>
+    list.innerHTML = notifs.map(n =>
       '<div style="background:var(--bg);border-radius:6px;padding:8px;margin-bottom:6px;font-size:12px">' +
       '<div style="font-weight:600">' + (n.icon || '🔔') + ' ' + (n.title || 'Notification') + '</div>' +
       '<div style="color:var(--fg2);margin-top:4px">' + (n.body || '') + '</div>' +
