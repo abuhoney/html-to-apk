@@ -781,6 +781,10 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 <div class="toast" id="toast"></div>
 
 <script>
+// Backend URL — Render backend (commented as primary, kept as fallback)
+// To switch back to Render, uncomment the line below:
+// const DEFAULT_BACKEND_URL = "https://html-to-apk-1789777001.onrender.com";
+// HuggingFace backend (primary):
 const DEFAULT_BACKEND_URL = "https://html-to-apk-1789777001.onrender.com";
 let BACKEND_URL = localStorage.getItem("backendUrl") || window.BACKEND_URL || DEFAULT_BACKEND_URL;
 const STATE = { htmlContent: "", fileName: "", lastResult: null };
@@ -2438,9 +2442,12 @@ async function aiGenerateImage() {
     const data = await resp.json();
     if (data.data && data.data[0]) {
       const item = data.data[0];
-      if (item.url) {
+      // z.ai returns "base64" field (not "b64_json")
+      if (item.base64) {
+        AI_GENERATED_IMAGE_BASE64 = item.base64;
+        $("aiImageDisplay").src = "data:image/jpeg;base64," + item.base64;
+      } else if (item.url) {
         $("aiImageDisplay").src = item.url;
-        // Fetch the image to get base64
         const imgResp = await fetch(item.url);
         const imgBlob = await imgResp.blob();
         const reader = new FileReader();
