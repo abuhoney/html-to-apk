@@ -515,43 +515,23 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 </div>
 
 <div class="card">
-  <h3>③ Build APK (Unified Workflow)</h3>
-
-  <!-- Step indicators -->
-  <div class="workflow-steps" id="workflowSteps" style="display:flex;gap:4px;margin-bottom:12px;font-size:11px">
-    <div class="step" id="step1" style="flex:1;padding:6px 8px;background:var(--surface2);border-radius:6px;text-align:center;color:var(--fg2)">
-      ① Analyze
-    </div>
-    <div class="step" id="step2" style="flex:1;padding:6px 8px;background:var(--surface2);border-radius:6px;text-align:center;color:var(--fg2)">
-      ② Admin
-    </div>
-    <div class="step" id="step3" style="flex:1;padding:6px 8px;background:var(--surface2);border-radius:6px;text-align:center;color:var(--fg2)">
-      ③ Build
-    </div>
-  </div>
-
-  <!-- Main unified button -->
-  <button class="btn btn-primary" id="buildBtn" onclick="startUnifiedWorkflow()" disabled>
-    <span id="buildBtnText">🚀 Start Workflow</span>
-  </button>
+  <h3>③ Build APK</h3>
+  <p style="font-size:11px;color:var(--fg2);margin-bottom:10px">
+    Direct build — pick engine below and tap. No admin panel needed.
+  </p>
 
   <!-- Engine selector -->
-  <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-    <label style="font-size:11px;color:var(--fg2)">Engine:</label>
+  <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center">
+    <label style="font-size:11px;color:var(--fg2);min-width:60px">Engine:</label>
     <select id="engineVersion" style="flex:1;background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px">
-      <option value="v2">v2 (5-char IDs + RBAC + Offline)</option>
-      <option value="v3">v3 (Web Components + Shadow DOM + SW)</option>
+      <option value="v2">⚡ v2 — 5-char IDs + RBAC + Offline Sync</option>
+      <option value="v3">🚀 v3 — Web Components + Shadow DOM + Service Worker</option>
     </select>
   </div>
 
-  <!-- Open Admin button (appears after analyze) -->
-  <button class="btn btn-alt" id="openAdminBtn" onclick="openAdminPanel()" style="margin-top:8px;display:none">
-    🎛 Open Admin Panel (edit fields, RBAC, layout)
-  </button>
-
-  <!-- Save & Build button (appears after admin edits) -->
-  <button class="btn btn-alt" id="saveAndBuildBtn" onclick="saveAndBuild()" style="margin-top:8px;display:none;background:#238636;color:#fff">
-    💾 Save Edits & Build APK
+  <!-- Main build button -->
+  <button class="btn btn-primary" id="buildBtn" onclick="buildApkDirect()" disabled>
+    <span id="buildBtnText">Pick HTML first</span>
   </button>
 
   <div class="progress" id="progress">
@@ -776,8 +756,10 @@ function validate() {
   const hasInput = (hasHTML || hasMedia) && $("appName").value.trim().length > 0;
   $("buildBtn").disabled = !hasInput;
   if (hasInput) {
-    if (hasMedia) $("buildBtnText").textContent = "🚀 Start Workflow (" + mediaItems.length + " files)";
-    else $("buildBtnText").textContent = "🚀 Start Workflow";
+    const engine = $("engineVersion") ? $("engineVersion").value : "v2";
+    const engineLabel = engine === "v3" ? "🚀 v3" : "⚡ v2";
+    if (hasMedia) $("buildBtnText").textContent = engineLabel + " Build APK (" + mediaItems.length + " files)";
+    else $("buildBtnText").textContent = engineLabel + " Build APK";
   } else if (!hasHTML && !hasMedia) {
     $("buildBtnText").textContent = "Pick HTML or Media first";
   } else {
@@ -787,37 +769,12 @@ function validate() {
 
 $("appName").addEventListener("input", validate);
 
-// ─── UNIFIED WORKFLOW: Analyze → Admin → Save → Build ──────────────────────
-// Replaces 3 separate buttons with one coherent workflow:
-//   1. startUnifiedWorkflow() → /api/analyze-and-prepare
-//   2. openAdminPanel() → /api/admin-html/<id> (opens in new window)
-//   3. saveAndBuild() → /api/save-edits + /api/build-prepared-apk
+// ─── Direct Build: pick engine, build APK in one click ──────────────────────
+// No admin.html, no workflow steps. Just: pick files → pick engine → build.
+// Calls /api/build-v2-apk or /api/build-v3-apk based on engine selector.
 // ────────────────────────────────────────────────────────────────────────────
 
-let WORKFLOW = {
-  functionId: null,
-  analyzeResult: null,
-  adminWindow: null,
-};
-
-function setStepActive(stepNum) {
-  for (let i = 1; i <= 3; i++) {
-    const el = $("step" + i);
-    if (i < stepNum) {
-      el.style.background = "#238636";
-      el.style.color = "#fff";
-      el.textContent = (i === 1 ? "①" : i === 2 ? "②" : "③") + " ✓";
-    } else if (i === stepNum) {
-      el.style.background = "#58a6ff";
-      el.style.color = "#fff";
-    } else {
-      el.style.background = "var(--surface2)";
-      el.style.color = "var(--fg2)";
-    }
-  }
-}
-
-async function startUnifiedWorkflow() {
+async function buildApkDirect() {
   let appName = $("appName").value.trim();
   if (!appName) {
     toast("App name required", "err");
@@ -825,6 +782,7 @@ async function startUnifiedWorkflow() {
     return;
   }
   const ver = $("version").value.trim() || "1.0.0";
+  const engineVersion = $("engineVersion").value || "v2";
   const hasHTML = STATE.htmlContent || STATE.fileObj;
   const hasMedia = mediaItems.length > 0;
 
@@ -833,23 +791,24 @@ async function startUnifiedWorkflow() {
     return;
   }
 
+  // Route to appropriate endpoint
+  const endpoint = engineVersion === "v3" ? "/api/build-v3-apk" : "/api/build-v2-apk";
+  const engineLabel = engineVersion === "v3" ? "🚀 v3 (Web Components)" : "⚡ v2 (5-char IDs + RBAC)";
+
   $("buildBtn").disabled = true;
-  $("buildBtnText").textContent = "Analyzing…";
+  $("buildBtnText").textContent = "Building " + engineLabel.split(" ")[0] + "…";
   $("resultCard").classList.remove("show");
   $("buildLog").textContent = "";
-  $("openAdminBtn").style.display = "none";
-  $("saveAndBuildBtn").style.display = "none";
-  setStepActive(1);
   setProgress(5, "Preparing bundle…");
-  log("→ POST " + BACKEND_URL + "/api/analyze-and-prepare");
-  log("⚙ Stage 1: data_analyzer → 10 builders → native_bridge → admin_renderer");
+  log("→ POST " + BACKEND_URL + endpoint);
+  log("⚙ " + engineLabel);
+  log("  Pipeline: data_analyzer → 10 builders → template_renderer → native_bridge → apk_builder");
 
   try {
     const fd = new FormData();
     let files = [];
     let totalSize = 0;
 
-    // Build bundle (same format as before)
     if (hasMedia) {
       setProgress(10, "Encoding " + mediaItems.length + " files to base64…");
       for (let i = 0; i < mediaItems.length; i++) {
@@ -864,7 +823,8 @@ async function startUnifiedWorkflow() {
           size: item.size,
           content_base64: base64,
         });
-        setProgress(10 + Math.floor((i / mediaItems.length) * 20), "Encoded " + (i + 1) + "/" + mediaItems.length);
+        setProgress(10 + Math.floor((i / mediaItems.length) * 25), "Encoded " + (i + 1) + "/" + mediaItems.length);
+        log("  " + (i + 1) + ". " + path + " (" + fmtSize(item.size) + ")");
         await new Promise(r => setTimeout(r, 0));
       }
     } else if (hasHTML) {
@@ -880,6 +840,7 @@ async function startUnifiedWorkflow() {
         size: totalSize,
         content_base64: base64,
       });
+      log("  1. " + (STATE.fileName || "app.html") + " (" + fmtSize(totalSize) + ")");
     }
 
     const bundle = {
@@ -887,143 +848,60 @@ async function startUnifiedWorkflow() {
       files: files,
     };
     const bundleBlob = new Blob([JSON.stringify(bundle)], {type: "application/json"});
-    fd.append("bundle_file", bundleBlob, "workflow_bundle.json");
+    fd.append("bundle_file", bundleBlob, "build_bundle.json");
     fd.append("app_name", appName);
     fd.append("media_type", selectedMediaType || "any");
+    fd.append("version_name", ver);
 
     if (customIconData) {
       const iconBlob = new Blob([customIconData], {type: "image/png"});
       fd.append("icon_file", iconBlob, "app_icon.png");
-      log("Custom icon attached");
+      log("Custom icon attached (" + fmtSize(customIconData.byteLength) + ")");
     }
 
-    setProgress(40, "Server running engine pipeline (analyzer + 10 builders + native_bridge)…");
-    log("Server analyzing (~5-10s on free tier)…");
+    setProgress(45, "Server running " + engineLabel + " pipeline…");
+    log("Server building (~50s on free tier)…");
 
-    const r = await fetch(BACKEND_URL + "/api/analyze-and-prepare", {method: "POST", body: fd});
-    const d = await r.json();
-    setProgress(95, "Finalizing…");
-
-    if (d.success) {
-      WORKFLOW.functionId = d.function_id;
-      WORKFLOW.analyzeResult = d;
-      setProgress(100, "✓ Analyzed! Ready for Admin editing");
-      log("✓ Stage 1 complete in " + (d.duration_sec || "?") + "s");
-      log("  function_id: " + d.function_id);
-      log("  ids_count: " + d.ids_count + " | datasets: " + d.datasets_count + " | items: " + d.items_count);
-      log("  builders_run: " + d.builders_run + "/10 ✓");
-      log("  native_bridge: " + fmtSize(d.native_bridge_bytes) + " | rbac: " + fmtSize(d.rbac_bytes) + " | offline: " + fmtSize(d.offline_bytes));
-      log("  Admin.html: " + fmtSize(d.admin_html_bytes) + " (editable)");
-      log("");
-      log("→ Next: Open Admin Panel to edit fields, RBAC roles, layout");
-      // Show Admin button
-      $("openAdminBtn").style.display = "block";
-      $("buildBtnText").textContent = "✓ Analyzed — Open Admin below";
-      $("buildBtn").disabled = true;  // Disable until admin is done
-      setStepActive(2);
-      toast("✓ Analyzed! Open Admin to edit", "ok");
-      setTimeout(() => setProgress(null), 2000);
-    } else {
-      log("✗ Analyze failed: " + (d.error || "unknown"));
-      showResult(d, false);
-      setProgress(null);
-      toast("Analyze failed", "err");
-      $("buildBtn").disabled = false;
-      $("buildBtnText").textContent = "🚀 Start Workflow";
-    }
-  } catch (e) {
-    log("✗ Network error: " + e.message);
-    showResult({success: false, error: "Network error: " + e.message}, false);
-    setProgress(null);
-    toast("Network error", "err");
-    $("buildBtn").disabled = false;
-    $("buildBtnText").textContent = "🚀 Start Workflow";
-  }
-}
-
-function openAdminPanel() {
-  if (!WORKFLOW.functionId) {
-    toast("Start workflow first", "err");
-    return;
-  }
-  const url = BACKEND_URL + "/api/admin-html/" + WORKFLOW.functionId;
-  log("→ Opening Admin.html: " + url);
-  // Open in new tab/window so the user can edit fields, RBAC, layout
-  if (window.AndroidBridge && AndroidBridge.downloadApk) {
-    // In Android WebView, open in same window (the Admin.html will navigate back via JS)
-    window.location.href = url;
-  } else {
-    WORKFLOW.adminWindow = window.open(url, "_blank");
-  }
-  log("Admin Panel opened — edit fields, RBAC roles, layout");
-  log("After editing, return here and click 'Save & Build'");
-  // Show the Save & Build button
-  $("saveAndBuildBtn").style.display = "block";
-  $("openAdminBtn").textContent = "🎛 Reopen Admin Panel";
-  toast("Admin opened in new tab", "ok");
-}
-
-async function saveAndBuild() {
-  if (!WORKFLOW.functionId) {
-    toast("Start workflow first", "err");
-    return;
-  }
-  let appName = $("appName").value.trim() || "App";
-  const engineVersion = $("engineVersion").value || "v2";
-  const ver = $("version").value.trim() || "1.0.0";
-
-  $("saveAndBuildBtn").disabled = true;
-  $("saveAndBuildBtn").textContent = "Building…";
-  setStepActive(3);
-  setProgress(50, "Building APK from saved edits…");
-  log("→ POST " + BACKEND_URL + "/api/build-prepared-apk (engine=" + engineVersion + ")");
-  log("⚙ Stage 4: apk_builder_v3 (aapt2 → javac → d8 → zipalign → apksigner)");
-
-  try {
-    const buildPayload = {
-      function_id: WORKFLOW.functionId,
-      engine_version: engineVersion,
-      app_name: appName,
-      package_name: "com.htmltoapk.app." + appName.toLowerCase().replace(/[^a-z0-9]/g, ""),
-      version_name: ver,
-    };
-
-    let fakePct = 55;
+    let fakePct = 50;
     const progressInterval = setInterval(() => {
       if (fakePct < 90) {
         fakePct += 1;
-        setProgress(fakePct, "Building APK (" + fakePct + "%)…");
+        setProgress(fakePct, engineLabel + " compiling (" + fakePct + "%)…");
       }
-    }, 1000);
+    }, 1200);
 
-    const r = await fetch(BACKEND_URL + "/api/build-prepared-apk", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(buildPayload)
-    });
+    const r = await fetch(BACKEND_URL + endpoint, {method: "POST", body: fd});
     clearInterval(progressInterval);
     const d = await r.json();
     setProgress(95, "Finalizing…");
 
     if (d.success) {
       STATE.lastResult = d;
-      setProgress(100, "✓ APK Built! Downloading…");
-      log("✓ Stage 4 complete: APK built in " + (d.duration_sec || "?") + "s - " + fmtSize(d.apk_size));
+      setProgress(100, "✓ Built! Downloading…");
+      log("✓ Built in " + (d.duration_sec || "?") + "s - " + fmtSize(d.apk_size));
       log("  build_mode: " + d.build_mode);
-      if (d.edit_summary) {
-        log("  config.json: " + fmtSize(d.edit_summary.config_json_size));
-        log("  strings.json: " + fmtSize(d.edit_summary.strings_json_size));
-        log("  template.html: " + fmtSize(d.edit_summary.template_html_size));
+
+      // Show engine metadata
+      const engineData = d.v2_engine || d.v3_engine;
+      if (engineData) {
+        log("  ids_count: " + engineData.ids_count + " | datasets: " + engineData.datasets_count + " | items: " + engineData.items_count);
+        log("  builders_run: " + engineData.builders_run + "/10 ✓");
+        log("  native_bridge: " + fmtSize(engineData.native_bridge_bytes) + " | rbac: " + fmtSize(engineData.rbac_engine_bytes) + " | offline: " + fmtSize(engineData.offline_sync_bytes));
+        log("  template_size: " + fmtSize(engineData.template_size_bytes));
+        if (engineData.core_engine_bytes) {
+          log("  core_engine: " + fmtSize(engineData.core_engine_bytes) + " | components: " + fmtSize(engineData.components_js_bytes) + " | sw: " + fmtSize(engineData.sw_js_bytes));
+        }
+        log("  engine_version: " + engineData.engine_version);
       }
-      // Save to history
+
       if (d.apk_url) {
         addLocalBuild({
           name: d.apk_name || "app.apk",
-          function: WORKFLOW.functionId,
+          function: d.function || "",
           size: d.apk_size || 0,
           modified: new Date().toISOString(),
           url: BACKEND_URL + d.apk_url,
-          source: "unified-workflow"
+          source: engineVersion + "-direct"
         });
         // Auto-download
         const dlUrl = BACKEND_URL + d.apk_url;
@@ -1036,47 +914,31 @@ async function saveAndBuild() {
           document.body.appendChild(a); a.click(); a.remove();
         }
       }
-      toast("🎉 APK Built! Downloading…", "ok");
-      setTimeout(() => {
-        setProgress(null);
-        refreshHistory();
-        // Reset workflow for next build
-        WORKFLOW = {functionId: null, analyzeResult: null, adminWindow: null};
-        $("buildBtn").disabled = false;
-        $("buildBtnText").textContent = "🚀 Start Workflow";
-        $("openAdminBtn").style.display = "none";
-        $("saveAndBuildBtn").style.display = "none";
-        $("saveAndBuildBtn").disabled = false;
-        $("saveAndBuildBtn").textContent = "💾 Save Edits & Build APK";
-        setStepActive(0);
-        // Re-enable step 1 highlight
-        $("step1").style.background = "var(--surface2)";
-        $("step1").style.color = "var(--fg2)";
-        $("step1").textContent = "① Analyze";
-        $("step2").style.background = "var(--surface2)";
-        $("step2").style.color = "var(--fg2)";
-        $("step2").textContent = "② Admin";
-        $("step3").style.background = "var(--surface2)";
-        $("step3").style.color = "var(--fg2)";
-        $("step3").textContent = "③ Build";
-      }, 2000);
+      toast("✓ " + engineLabel.split(" ")[0] + " APK built! Downloading…", "ok");
+      setTimeout(() => { setProgress(null); refreshHistory(); }, 2000);
     } else {
       log("✗ Build failed: " + (d.error || "unknown"));
       showResult(d, false);
       setProgress(null);
       toast("Build failed", "err");
-      $("saveAndBuildBtn").disabled = false;
-      $("saveAndBuildBtn").textContent = "💾 Save Edits & Build APK";
     }
   } catch (e) {
     log("✗ Network error: " + e.message);
     showResult({success: false, error: "Network error: " + e.message}, false);
     setProgress(null);
     toast("Network error", "err");
-    $("saveAndBuildBtn").disabled = false;
-    $("saveAndBuildBtn").textContent = "💾 Save Edits & Build APK";
   }
+
+  $("buildBtn").disabled = false;
+  // Re-evaluate button text
+  validate();
 }
+
+// Also update button text when engine selector changes
+document.addEventListener("DOMContentLoaded", function() {
+  const sel = $("engineVersion");
+  if (sel) sel.addEventListener("change", validate);
+});
 
 // ─── Legacy build functions (kept for backward compatibility) ───────────────
 async function buildApk() {
