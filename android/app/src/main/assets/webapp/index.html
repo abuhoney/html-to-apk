@@ -596,6 +596,60 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- AI PANEL (aiTypeScroll) — before mediaTypeScroll                          -->
+<!-- Contains: autoApkAi (AI-powered APK generation) + autoImageAi (AI images) -->
+<!-- Uses z.ai API directly from JavaScript (no backend needed for AI)          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="card" id="aiPickCard">
+  <h3>🤖 AI Studio <span class="badge" id="aiBadge">ready</span></h3>
+
+  <!-- AI type selector (extensible) -->
+  <div class="media-type-scroll" id="aiTypeScroll" style="margin-bottom:12px">
+    <div class="media-type-card" onclick="selectAiType('autoApkAi')" id="aiCard-autoApkAi">
+      <div class="media-type-icon">📱</div>
+      <div class="media-type-label">Auto APK AI</div>
+    </div>
+    <div class="media-type-card" onclick="selectAiType('autoImageAi')" id="aiCard-autoImageAi">
+      <div class="media-type-icon">🎨</div>
+      <div class="media-type-label">Auto Image AI</div>
+    </div>
+  </div>
+
+  <!-- autoApkAi: AI generates app from prompt → builds APK -->
+  <div id="autoApkAiPanel" style="display:none;background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:8px">📱 AI-Powered APK Generation</div>
+    <input type="text" id="aiApkPrompt" placeholder="Describe your app (e.g., 'Hospital management with patient list')" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;margin-bottom:8px">
+    <input type="text" id="aiApkAppName" placeholder="App name (e.g., 'MyHospital')" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;margin-bottom:8px">
+    <input type="text" id="aiApkConfigure" placeholder="Configure (e.g., 'dark theme, Arabic support')" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;margin-bottom:8px">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+      <div id="aiIconPreview" style="width:40px;height:40px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;border:1px solid var(--border)" onclick="document.getElementById('aiIconInput').click()">🖼</div>
+      <span style="font-size:11px;color:var(--fg2)">Optional app icon (tap to pick)</span>
+    </div>
+    <input type="file" id="aiIconInput" accept="image/png,image/jpeg,image/webp" style="display:none">
+    <button class="btn btn-primary" onclick="aiBuildApk()" id="aiBuildBtn" style="width:100%;background:linear-gradient(135deg,#58a6ff,#1f6feb);color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;cursor:pointer">
+      🚀 Build APK with AI
+    </button>
+    <div id="aiBuildProgress" style="display:none;margin-top:8px"></div>
+  </div>
+
+  <!-- autoImageAi: AI generates images from prompt -->
+  <div id="autoImageAiPanel" style="display:none;background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:8px">🎨 AI Image Generation</div>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="aiImagePrompt" placeholder="Describe the image (e.g., 'a mosque at sunset')" style="flex:1;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px">
+      <button onclick="aiGenerateImage()" id="aiImageBtn" style="background:linear-gradient(135deg,#bc8cff,#a855f7);color:#fff;border:none;border-radius:6px;padding:10px 16px;font-size:13px;cursor:pointer">✅</button>
+    </div>
+    <div id="aiImageResult" style="display:none;margin-top:10px;text-align:center">
+      <img id="aiImageDisplay" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" />
+      <div style="margin-top:6px;display:flex;gap:6px;justify-content:center">
+        <button onclick="downloadAiImage()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer">⬇ Download</button>
+        <button onclick="useAiImageAsIcon()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer">📋 Use as App Icon</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card" id="mediaPickCard">
   <h3>①½ Pick App Type & Files <span class="badge" id="mediaBadge">loading…</span></h3>
 
@@ -2227,6 +2281,209 @@ setupIconPicker();
 loadAppTypes(); // Load dynamic app types from /api/app-types
 checkHealth().then(() => refreshHistory());
 setInterval(checkHealth, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI PANEL: autoApkAi + autoImageAi — z.ai API integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ZAI_BASE_URL = "https://internal-api.z.ai/v1";
+const ZAI_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWYyYWQ0OWItMjNlOS00YzJkLThiMTMtNmZmNjkzZjVkZDkwIiwiY2hhdF9pZCI6ImNoYXQtMGE5MWIzMmYtOWQ2Yi00NzZiLTg1ZmItNmZhMmNlYWE5Y2JmIiwicGxhdGZvcm0iOiJ6YWkifQ.tVpZjm40XWjVQjHkCAqz0yB0a4xDRD1_eo3e6o6otxU";
+let AI_SELECTED_TYPE = null;
+let AI_GENERATED_IMAGE_BASE64 = null;
+let AI_ICON_BASE64 = null;
+
+function selectAiType(type) {
+  AI_SELECTED_TYPE = type;
+  // Hide all panels
+  $("autoApkAiPanel").style.display = "none";
+  $("autoImageAiPanel").style.display = "none";
+  // Show selected
+  $(type + "Panel").style.display = "block";
+  // Update card highlight
+  document.querySelectorAll("#aiTypeScroll .media-type-card").forEach(c => c.style.borderColor = "var(--border)");
+  $("aiCard-" + type).style.borderColor = "var(--accent)";
+  toast("AI mode: " + (type === "autoApkAi" ? "APK Generation" : "Image Generation"), "ok");
+}
+
+// AI icon picker
+document.addEventListener("DOMContentLoaded", function() {
+  const aiIconInput = $("aiIconInput");
+  if (aiIconInput) {
+    aiIconInput.addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function() {
+        // Convert to PNG via canvas (same as customIconPicker)
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement("canvas");
+          canvas.width = 192; canvas.height = 192;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, 192, 192);
+          AI_ICON_BASE64 = canvas.toDataURL("image/png").split(",")[1];
+          $("aiIconPreview").innerHTML = "<img src='data:image/png;base64," + AI_ICON_BASE64 + "' style='width:100%;height:100%;border-radius:8px' />";
+          toast("Icon set", "ok");
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════
+// autoApkAi: AI generates HTML → builds APK
+// ═════════════════════════════════════════════════════════════════
+
+async function aiBuildApk() {
+  const prompt = $("aiApkPrompt").value.trim();
+  const appName = $("aiApkAppName").value.trim() || "AI App";
+  const configure = $("aiApkConfigure").value.trim();
+  if (!prompt) { toast("Enter a prompt", "err"); return; }
+
+  $("aiBuildBtn").disabled = true;
+  $("aiBuildBtn").textContent = "🤖 AI generating...";
+  $("aiBuildProgress").style.display = "block";
+  $("aiBuildProgress").innerHTML = "<div style='font-size:12px;color:var(--fg2);padding:8px'>Step 1/2: AI generating HTML app...</div>";
+
+  try {
+    // Step 1: Call z.ai to generate HTML
+    const sysPrompt = "You are an expert app developer. Generate a COMPLETE, self-contained HTML file for an Android app called \"" + appName + "\". " +
+      "Requirements: Single HTML with embedded CSS+JS, dark theme (#0f0f1e bg, #e94560 accent), mobile-first responsive. " +
+      "App purpose: " + prompt + ". Configure: " + (configure || 'none') + ". " +
+      "Include a top bar with app name + WhatsApp icon (opens https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E). Return ONLY HTML code.";
+
+    const aiResp = await fetch(ZAI_BASE_URL + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZAI_TOKEN },
+      body: JSON.stringify({
+        model: "glm-4-flash",
+        messages: [{role: "system", content: sysPrompt}, {role: "user", content: "Generate the HTML app now."}],
+        temperature: 0.7,
+        max_tokens: 8000,
+      })
+    });
+    const aiData = await aiResp.json();
+    let html = aiData.choices?.[0]?.message?.content || "";
+    // Extract HTML from code block
+    if (html.includes("```html")) { html = html.substring(html.indexOf("```html") + 7, html.lastIndexOf("```")).trim(); }
+    else if (html.includes("```")) { html = html.substring(html.indexOf("```") + 3, html.lastIndexOf("```")).trim(); }
+    if (!html.trim().startsWith("<")) html = "<!DOCTYPE html>\n" + html;
+
+    $("aiBuildProgress").innerHTML = "<div style='font-size:12px;color:var(--fg2);padding:8px'>✓ HTML generated: " + html.length + " chars<br>Step 2/2: Building APK...</div>";
+
+    // Step 2: Send to backend to build APK
+    const bundle = {
+      app_name: appName,
+      media_type: "any",
+      files: [{ path: "app.html", original_name: "app.html", content_base64: btoa(unescape(encodeURIComponent(html))), size: html.length }],
+      app_config: { whatsapp_channel_url: "https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E", whatsapp_contact_number: "+967773458975" }
+    };
+
+    const fd = new FormData();
+    fd.append("bundle_file", new Blob([JSON.stringify(bundle)], {type: "application/json"}), "ai_bundle.json");
+    fd.append("app_name", appName);
+    fd.append("media_type", "any");
+    fd.append("app_config", JSON.stringify({whatsapp_channel_url: "https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E", whatsapp_contact_number: "+967773458975"}));
+    if (AI_ICON_BASE64) {
+      fd.append("icon_file", new Blob([Uint8Array.from(atob(AI_ICON_BASE64), c => c.charCodeAt(0))], {type: "image/png"}), "app_icon.png");
+    }
+
+    const buildResp = await fetch(BACKEND_URL + "/api/build-v2-apk", { method: "POST", body: fd });
+    const buildData = await buildResp.json();
+
+    if (buildData.success) {
+      $("aiBuildProgress").innerHTML = "<div style='background:rgba(63,185,80,.1);border:1px solid var(--green);border-radius:8px;padding:10px'>" +
+        "<div style='color:var(--green);font-weight:600'>✓ AI APK Built!</div>" +
+        "<div style='color:var(--fg2);font-size:12px;margin-top:4px'>Size: " + fmtSize(buildData.apk_size) + " | Mode: " + buildData.build_mode + "</div>" +
+        "</div>";
+      // Auto-download
+      if (buildData.apk_url) {
+        const dlUrl = BACKEND_URL + buildData.apk_url;
+        const dlName = buildData.apk_name || "app.apk";
+        if (window.AndroidBridge && window.AndroidBridge.downloadApk) AndroidBridge.downloadApk(dlUrl, dlName);
+        else { const a = document.createElement("a"); a.href = dlUrl; a.download = dlName; document.body.appendChild(a); a.click(); a.remove(); }
+      }
+      toast("🚀 AI APK built! Downloading...", "ok");
+    } else {
+      $("aiBuildProgress").innerHTML = "<div style='background:rgba(248,81,73,.1);border:1px solid var(--red);border-radius:8px;padding:10px;color:var(--red)'>Build failed: " + (buildData.error || "unknown") + "</div>";
+      toast("Build failed", "err");
+    }
+  } catch (e) {
+    $("aiBuildProgress").innerHTML = "<div style='color:var(--red);font-size:12px;padding:8px'>Error: " + e.message + "</div>";
+    toast("AI error: " + e.message, "err");
+  }
+  $("aiBuildBtn").disabled = false;
+  $("aiBuildBtn").textContent = "🚀 Build APK with AI";
+}
+
+// ═════════════════════════════════════════════════════════════════
+// autoImageAi: AI generates image from prompt
+// ═════════════════════════════════════════════════════════════════
+
+async function aiGenerateImage() {
+  const prompt = $("aiImagePrompt").value.trim();
+  if (!prompt) { toast("Enter a prompt", "err"); return; }
+  $("aiImageBtn").textContent = "⏳";
+  $("aiImageBtn").disabled = true;
+  $("aiImageResult").style.display = "none";
+
+  try {
+    const resp = await fetch(ZAI_BASE_URL + "/images/generations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZAI_TOKEN },
+      body: JSON.stringify({ model: "cogview-3-flash", prompt: prompt, size: "1024x1024" })
+    });
+    const data = await resp.json();
+    if (data.data && data.data[0]) {
+      const item = data.data[0];
+      if (item.url) {
+        $("aiImageDisplay").src = item.url;
+        // Fetch the image to get base64
+        const imgResp = await fetch(item.url);
+        const imgBlob = await imgResp.blob();
+        const reader = new FileReader();
+        reader.onload = () => { AI_GENERATED_IMAGE_BASE64 = reader.result.split(",")[1]; };
+        reader.readAsDataURL(imgBlob);
+      } else if (item.b64_json) {
+        AI_GENERATED_IMAGE_BASE64 = item.b64_json;
+        $("aiImageDisplay").src = "data:image/png;base64," + item.b64_json;
+      }
+      $("aiImageResult").style.display = "block";
+      toast("✅ Image generated!", "ok");
+    } else {
+      toast("No image in response", "err");
+    }
+  } catch (e) {
+    toast("Error: " + e.message, "err");
+  }
+  $("aiImageBtn").textContent = "✅";
+  $("aiImageBtn").disabled = false;
+}
+
+function downloadAiImage() {
+  if (!AI_GENERATED_IMAGE_BASE64) return;
+  const a = document.createElement("a");
+  a.href = "data:image/png;base64," + AI_GENERATED_IMAGE_BASE64;
+  a.download = "ai_image.png";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("Downloaded", "ok");
+}
+
+function useAiImageAsIcon() {
+  if (!AI_GENERATED_IMAGE_BASE64) return;
+  AI_ICON_BASE64 = AI_GENERATED_IMAGE_BASE64;
+  // Also set as the main custom icon
+  customIconData = Uint8Array.from(atob(AI_GENERATED_IMAGE_BASE64), c => c.charCodeAt(0));
+  customIconMime = "image/png";
+  // Update icon previews
+  $("aiIconPreview").innerHTML = "<img src='data:image/png;base64," + AI_GENERATED_IMAGE_BASE64 + "' style='width:100%;height:100%;border-radius:8px' />";
+  if ($("iconPreviewMain")) {
+    $("iconPreviewMain").innerHTML = "<img src='data:image/png;base64," + AI_GENERATED_IMAGE_BASE64 + "' style='width:100%;height:100%;border-radius:8px' />";
+  }
+  toast("Image set as app icon", "ok");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SERVICE PANEL: Firebase-backed user account, stats, coupons, transfer, upgrade
