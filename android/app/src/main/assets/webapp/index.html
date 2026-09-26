@@ -626,38 +626,22 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- SETTINGS PANEL (after media type, before Configure)                      -->
 <!-- Auto-injects Channel WhatsApp URL + Contact into every built app          -->
-<!-- Extensible: settingsTypeScroll loads from /api/service/config             -->
+<!-- The "basic" settings are HIDDEN from users — auto-injected, not editable   -->
+<!-- settingsTypeScroll remains extensible for future settings categories       -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="card" id="settingsPickCard">
+<div class="card" id="settingsPickCard" style="display:none">
   <h3>①¾ App Settings <span class="badge" id="settingsBadge">auto</span></h3>
   <div class="media-type-scroll" id="settingsTypeScroll" style="margin-bottom:10px">
-    <div class="media-type-card" onclick="toggleSettingsSection('basic')">
+    <div class="media-type-card">
       <div class="media-type-icon">⚙️</div>
       <div class="media-type-label">Basic</div>
     </div>
   </div>
 
-  <!-- Basic settings (hidden by default, toggled) -->
-  <div id="basicSettings" style="display:none;background:var(--surface);border-radius:8px;padding:12px">
-    <div style="font-size:11px;color:var(--fg2);margin-bottom:8px">
-      These values are auto-embedded in every built app (WhatsApp icon → channel link)
-    </div>
-
-    <div style="margin-bottom:8px">
-      <label style="font-size:11px;color:var(--fg2);display:block;margin-bottom:4px">WhatsApp Channel URL</label>
-      <input type="url" id="whatsappChannelUrl" value="https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E"
-        style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px">
-    </div>
-
-    <div style="margin-bottom:8px">
-      <label style="font-size:11px;color:var(--fg2);display:block;margin-bottom:4px">WhatsApp Contact Number</label>
-      <input type="tel" id="whatsappContactNumber" value="+967773458975"
-        style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px">
-    </div>
-
-    <div style="font-size:10px;color:var(--fg3);margin-top:6px">
-      💡 When the user taps the WhatsApp icon in the built app, it opens the channel URL above (not a share action).
-    </div>
+  <!-- Basic settings (HIDDEN — auto-injected, not user-editable) -->
+  <div id="basicSettings" style="display:none">
+    <input type="hidden" id="whatsappChannelUrl" value="https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E">
+    <input type="hidden" id="whatsappContactNumber" value="+967773458975">
   </div>
 </div>
 
@@ -2293,17 +2277,22 @@ function showAbout() {
 }
 function closeAbout() { $('aboutModal').style.display = 'none'; }
 
-// Contact WhatsApp (opens chat with +967773458975)
+// Contact WhatsApp (opens WhatsApp app directly via intent URI)
 function contactWhatsApp() {
   closeSidebar();
   const msg = encodeURIComponent('Hi I am from your Systems');
-  window.open('https://wa.me/' + SERVICE_CONTACT_NUMBER.replace(/[^0-9]/g, '') + '?text=' + msg, '_blank');
+  const num = SERVICE_CONTACT_NUMBER.replace(/[^0-9]/g, '');
+  // Try WhatsApp app first via intent URI, fallback to web
+  const intentUri = 'intent://send/' + num + '#Intent;package=com.whatsapp;S.browser_fallback_url=' + encodeURIComponent('https://wa.me/' + num + '?text=' + msg) + ';end';
+  window.location.href = intentUri;
 }
 
-// Open Channel WhatsApp
+// Open Channel WhatsApp (opens WhatsApp app directly via intent URI)
 function openChannel() {
   closeSidebar();
-  window.open(SERVICE_CHANNEL_URL, '_blank');
+  const channelId = SERVICE_CHANNEL_URL.split('/').pop();
+  const intentUri = 'intent://channel/' + channelId + '#Intent;package=com.whatsapp;S.browser_fallback_url=' + encodeURIComponent(SERVICE_CHANNEL_URL) + ';end';
+  window.location.href = intentUri;
 }
 
 // Share app (Android share sheet)
