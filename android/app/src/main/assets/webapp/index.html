@@ -431,13 +431,153 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
       </div>
     </div>
   </div>
-  <div class="header-right">
-    <div id="buildsCount">0 builds</div>
-    <div id="versionTag">v1.8.0</div>
+  <div class="header-right" style="display:flex;align-items:center;gap:8px">
+    <button onclick="openSidebar()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div>
+      <div id="buildsCount">0 builds</div>
+      <div id="versionTag">v1.8.0</div>
+    </div>
   </div>
 </div>
 
 <main>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SERVICE PANEL (before HTML file picker)                                  -->
+<!-- Contains: account info, user stats, coupons, transfer, upgrade,         -->
+<!-- notifications, system stats — all Firebase-backed                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="card" id="servicePickCard">
+  <h3>🌐 Service Panel <span class="badge" id="serviceBadge">loading…</span></h3>
+
+  <!-- Service type selector (extensible — populated from /api/service/config) -->
+  <div class="media-type-scroll" id="serviceTypeScroll" style="margin-bottom:12px">
+    <div class="media-type-card" style="opacity:.5">
+      <div class="media-type-icon">⏳</div>
+      <div class="media-type-label">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ═══ 1. Account Info ═══ -->
+  <div class="service-section" id="accountInfo" style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div id="iconPreview" style="width:48px;height:48px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;border:2px solid var(--border)" onclick="document.getElementById('iconInput').click()">👤</div>
+      <div style="flex:1">
+        <div id="userName" style="font-weight:600;font-size:14px">Loading…</div>
+        <div style="font-size:11px;color:var(--fg2);display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+          <span>💰 <span id="userPalance" class="stat-badge">0</span></span>
+          <span>📱 <span id="userPhone">—</span></span>
+          <span>✉️ <span id="userGmail">—</span></span>
+        </div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:2px">
+          ID: <span id="userId">—</span> | Sharing: <span id="sharingId">—</span>
+        </div>
+      </div>
+      <button class="icon-btn-sm" id="clearIconBtn" onclick="clearServiceIcon()" title="Clear icon" style="display:none">✕</button>
+    </div>
+    <input type="file" id="iconInput" accept="image/png,image/jpeg,image/webp" style="display:none">
+  </div>
+
+  <!-- ═══ 2. User Stats ═══ -->
+  <div class="service-section" id="userStatusInfo" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    <div class="stat-card">⭐ <span class="stat-badge" id="statPalance">0</span><div class="stat-label">Points</div></div>
+    <div class="stat-card">🎖️ <span class="stat-badge" id="statSubscription">Free</span><div class="stat-label">Level</div></div>
+    <div class="stat-card">📝 <span class="stat-badge" id="statPosts">0</span><div class="stat-label">Posts</div></div>
+    <div class="stat-card">🎫 <span class="stat-badge" id="statCoupons">0</span><div class="stat-label">Coupons</div></div>
+    <div class="stat-card">📱 <span class="stat-badge" id="statApps">0</span><div class="stat-label">Apps</div></div>
+  </div>
+
+  <!-- ═══ 3. Coupon Gift ═══ -->
+  <div class="service-section" id="copounGift" style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:6px">🎁 Coupon Gift</div>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="inputCopoun" placeholder="Enter coupon code" style="flex:1;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px">
+      <button class="btn-sm" id="verifyBtn" onclick="verifyCoupon()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;cursor:pointer">✓</button>
+    </div>
+    <div id="couponResult" style="display:none;margin-top:8px"></div>
+  </div>
+
+  <!-- ═══ 4. Transfer Balance ═══ -->
+  <div class="service-section" id="transferPalance" style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:6px">💸 Transfer Balance <span class="stat-badge" id="YourPalanceBadge">0</span></div>
+    <input type="number" id="requiredPalance" placeholder="Amount to send" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;margin-bottom:6px">
+    <input type="tel" id="transferPhone" placeholder="Recipient phone" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;margin-bottom:6px">
+    <input type="email" id="transferGmail" placeholder="Recipient email" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;margin-bottom:6px">
+    <input type="text" id="transferUserId" placeholder="Recipient user ID" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;margin-bottom:6px">
+    <button class="btn-sm" onclick="transferBalance()" style="width:100%;background:#238636;color:#fff;border:none;border-radius:6px;padding:8px;font-size:12px;cursor:pointer">💸 Send & Generate Code</button>
+    <div id="transferResult" style="display:none;margin-top:8px"></div>
+  </div>
+
+  <!-- ═══ 5. Account Upgrade ═══ -->
+  <div class="service-section" id="upgradeSection" style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:6px">⬆️ Upgrade Account</div>
+    <div id="vipLevels" style="display:flex;gap:6px;margin-bottom:8px"></div>
+    <div style="font-size:11px;color:var(--fg2);margin-bottom:4px">Buy points (1$ = 10 pts):</div>
+    <input type="number" id="buyAmountUsd" placeholder="USD amount" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;margin-bottom:6px">
+    <div id="paymentMethods" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="upgradeProofSection" style="display:none;margin-bottom:8px">
+      <input type="file" id="proofImage" accept="image/*" style="display:none">
+      <button onclick="document.getElementById('proofImage').click()" style="width:100%;background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;cursor:pointer;margin-bottom:6px">📷 Upload Proof Image</button>
+      <textarea id="upgradeNote" placeholder="Note (optional)" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px;min-height:50px;resize:vertical"></textarea>
+    </div>
+    <button class="btn-sm" onclick="submitUpgrade()" style="width:100%;background:#d29922;color:#fff;border:none;border-radius:6px;padding:8px;font-size:12px;cursor:pointer">✓ Submit Request</button>
+    <div id="upgradeResult" style="display:none;margin-top:8px"></div>
+  </div>
+
+  <!-- ═══ 6. Notifications ═══ -->
+  <div class="service-section" id="notifications" style="background:var(--surface);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:6px;display:flex;justify-content:space-between">
+      <span>🔔 Notifications</span>
+      <button onclick="loadNotifications()" style="background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer">↻ Refresh</button>
+    </div>
+    <div id="notificationsList" style="max-height:200px;overflow-y:auto">
+      <div style="font-size:11px;color:var(--fg2);text-align:center;padding:10px">No notifications</div>
+    </div>
+  </div>
+
+  <!-- ═══ 7. System Stats ═══ -->
+  <div class="service-section" id="systemStatusInfo" style="display:flex;gap:6px;flex-wrap:wrap">
+    <div class="stat-card">👥 <span class="stat-badge" id="sysTotalUsers">0</span><div class="stat-label">Users</div></div>
+    <div class="stat-card">🛡️ <span class="stat-badge" id="sysTotalBuilds">0</span><div class="stat-label">Builds</div></div>
+    <div class="stat-card">📱 <span class="stat-badge" id="sysTotalApps">0</span><div class="stat-label">Apps</div></div>
+    <div class="stat-card">⭐ <span class="stat-badge" id="sysVipCount">0</span><div class="stat-label">VIP</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SIDEBAR MENU (hamburger icon in header)                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="sidebarOverlay" onclick="closeSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:998"></div>
+<div id="sidebar" style="display:none;position:fixed;top:0;right:0;bottom:0;width:280px;background:var(--surface);z-index:999;transform:translateX(100%);transition:.3s;overflow-y:auto;padding:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h3 style="color:var(--accent);font-size:16px">Menu</h3>
+    <button onclick="closeSidebar()" style="background:none;border:none;color:var(--fg);font-size:20px;cursor:pointer">✕</button>
+  </div>
+
+  <button class="sidebar-btn" onclick="showAbout()">
+    <span style="font-size:18px">ℹ️</span> About
+  </button>
+  <button class="sidebar-btn" onclick="contactWhatsApp()">
+    <span style="font-size:18px">💬</span> Contact WhatsApp
+  </button>
+  <button class="sidebar-btn" onclick="openChannel()">
+    <span style="font-size:18px">📢</span> Channel WhatsApp
+  </button>
+  <button class="sidebar-btn" onclick="shareApp()">
+    <span style="font-size:18px">🔗</span> Sharing
+  </button>
+</div>
+
+<!-- About result modal -->
+<div class="modal" id="aboutModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--surface);border-radius:12px;max-width:400px;width:100%;padding:24px">
+    <h3 id="aboutTitle" style="color:var(--accent);margin-bottom:12px">About</h3>
+    <div id="aboutMeta" style="color:var(--fg2);font-size:13px;line-height:1.6;margin-bottom:16px"></div>
+    <button onclick="closeAbout()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;cursor:pointer">✓ OK</button>
+  </div>
+</div>
 
 <!-- Backend status is shown in the header health dot only (URL hidden for security) -->
 <div class="card" id="pickCard">
@@ -480,6 +620,44 @@ main{padding:0 12px;display:flex;flex-direction:column;gap:12px}
     </div>
     <div id="mediaItems"></div>
     <div class="media-stats" id="mediaStats"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SETTINGS PANEL (after media type, before Configure)                      -->
+<!-- Auto-injects Channel WhatsApp URL + Contact into every built app          -->
+<!-- Extensible: settingsTypeScroll loads from /api/service/config             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="card" id="settingsPickCard">
+  <h3>①¾ App Settings <span class="badge" id="settingsBadge">auto</span></h3>
+  <div class="media-type-scroll" id="settingsTypeScroll" style="margin-bottom:10px">
+    <div class="media-type-card" onclick="toggleSettingsSection('basic')">
+      <div class="media-type-icon">⚙️</div>
+      <div class="media-type-label">Basic</div>
+    </div>
+  </div>
+
+  <!-- Basic settings (hidden by default, toggled) -->
+  <div id="basicSettings" style="display:none;background:var(--surface);border-radius:8px;padding:12px">
+    <div style="font-size:11px;color:var(--fg2);margin-bottom:8px">
+      These values are auto-embedded in every built app (WhatsApp icon → channel link)
+    </div>
+
+    <div style="margin-bottom:8px">
+      <label style="font-size:11px;color:var(--fg2);display:block;margin-bottom:4px">WhatsApp Channel URL</label>
+      <input type="url" id="whatsappChannelUrl" value="https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E"
+        style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px">
+    </div>
+
+    <div style="margin-bottom:8px">
+      <label style="font-size:11px;color:var(--fg2);display:block;margin-bottom:4px">WhatsApp Contact Number</label>
+      <input type="tel" id="whatsappContactNumber" value="+967773458975"
+        style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px">
+    </div>
+
+    <div style="font-size:10px;color:var(--fg3);margin-top:6px">
+      💡 When the user taps the WhatsApp icon in the built app, it opens the channel URL above (not a share action).
+    </div>
   </div>
 </div>
 
@@ -846,12 +1024,16 @@ async function buildApkDirect() {
     const bundle = {
       __meta: { media_type: selectedMediaType || "any", app_name: appName, total_files: files.length, total_size_bytes: totalSize },
       files: files,
+      // Auto-embed WhatsApp channel URL from settingsPickCard
+      app_config: getSettingsConfig(),
     };
     const bundleBlob = new Blob([JSON.stringify(bundle)], {type: "application/json"});
     fd.append("bundle_file", bundleBlob, "build_bundle.json");
     fd.append("app_name", appName);
     fd.append("media_type", selectedMediaType || "any");
     fd.append("version_name", ver);
+    // Also pass app_config as a separate field for backends that read it directly
+    fd.append("app_config", JSON.stringify(getSettingsConfig()));
 
     if (customIconData) {
       const iconBlob = new Blob([customIconData], {type: "image/png"});
@@ -2061,6 +2243,371 @@ setupIconPicker();
 loadAppTypes(); // Load dynamic app types from /api/app-types
 checkHealth().then(() => refreshHistory());
 setInterval(checkHealth, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SERVICE PANEL: Firebase-backed user account, stats, coupons, transfer, upgrade
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SERVICE_CHANNEL_URL = 'https://whatsapp.com/channel/0029VaijFIC5Ejxq4oG6wX0E';
+const SERVICE_CONTACT_NUMBER = '+967773458975';
+let SERVICE_DEVICE_ID = localStorage.getItem('serviceDeviceId') || '';
+let SERVICE_CONFIG = null;
+let SELECTED_VIP_LEVEL = null;
+let SELECTED_PAYMENT_METHOD = null;
+
+// Generate or load device ID (tied to this device)
+if (!SERVICE_DEVICE_ID) {
+  SERVICE_DEVICE_ID = 'dev_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 8);
+  localStorage.setItem('serviceDeviceId', SERVICE_DEVICE_ID);
+}
+
+// Sidebar
+function openSidebar() {
+  $('sidebar').style.display = 'block';
+  $('sidebarOverlay').style.display = 'block';
+  setTimeout(() => { $('sidebar').style.transform = 'translateX(0)'; }, 10);
+}
+function closeSidebar() {
+  $('sidebar').style.transform = 'translateX(100%)';
+  setTimeout(() => {
+    $('sidebar').style.display = 'none';
+    $('sidebarOverlay').style.display = 'none';
+  }, 300);
+}
+
+// About modal
+function showAbout() {
+  closeSidebar();
+  $('aboutTitle').textContent = 'About HTML to APK';
+  $('aboutMeta').innerHTML = '<b>Universal APK Factory v3.2.0</b><br><br>' +
+    'Convert any data file (HTML, JSON, CSV, Excel, PDF, Word) into a real, installable Android APK.<br><br>' +
+    '• 31 ID types supported<br>' +
+    '• 5-char ID isolation system<br>' +
+    '• RBAC (5 roles)<br>' +
+    '• Offline Sync (IndexedDB)<br>' +
+    '• Web Components + Shadow DOM (v3)<br>' +
+    '• Service Worker (offline-first)<br><br>' +
+    'Backend: ' + BACKEND_URL + '<br>' +
+    'Channel: ' + SERVICE_CHANNEL_URL;
+  $('aboutModal').style.display = 'flex';
+}
+function closeAbout() { $('aboutModal').style.display = 'none'; }
+
+// Contact WhatsApp (opens chat with +967773458975)
+function contactWhatsApp() {
+  closeSidebar();
+  const msg = encodeURIComponent('Hi I am from your Systems');
+  window.open('https://wa.me/' + SERVICE_CONTACT_NUMBER.replace(/[^0-9]/g, '') + '?text=' + msg, '_blank');
+}
+
+// Open Channel WhatsApp
+function openChannel() {
+  closeSidebar();
+  window.open(SERVICE_CHANNEL_URL, '_blank');
+}
+
+// Share app (Android share sheet)
+function shareApp() {
+  closeSidebar();
+  const shareText = 'I\'m Using the Best AI studio\n\n' +
+    'Use My sharingId = ' + (window.SERVICE_USER ? window.SERVICE_USER.sharingId : 'unknown') + ' to get free 5 points\n\n' +
+    'Confirmation channel = ' + SERVICE_CHANNEL_URL;
+  if (navigator.share) {
+    navigator.share({ title: 'HTML to APK', text: shareText }).catch(() => {});
+  } else {
+    // Fallback: copy to clipboard
+    navigator.clipboard.writeText(shareText).then(() => {
+      toast('Copied to clipboard!', 'ok');
+    });
+  }
+}
+
+// Toggle settings section
+function toggleSettingsSection(name) {
+  const el = $(name + 'Settings');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// Get WhatsApp channel URL from settings (for build request)
+function getSettingsConfig() {
+  return {
+    whatsapp_channel_url: $('whatsappChannelUrl') ? $('whatsappChannelUrl').value : SERVICE_CHANNEL_URL,
+    whatsapp_contact_number: $('whatsappContactNumber') ? $('whatsappContactNumber').value : SERVICE_CONTACT_NUMBER,
+  };
+}
+
+// Load service config (VIP levels, payment methods, coupons)
+async function loadServiceConfig() {
+  try {
+    const r = await fetch(BACKEND_URL + '/api/service/config');
+    SERVICE_CONFIG = await r.json();
+    renderServiceTypeScroll();
+    renderVipLevels();
+    renderPaymentMethods();
+    $('serviceBadge').textContent = 'ready';
+  } catch (e) {
+    $('serviceBadge').textContent = 'offline';
+    console.error('Service config load failed:', e);
+  }
+}
+
+function renderServiceTypeScroll() {
+  if (!SERVICE_CONFIG) return;
+  const scroll = $('serviceTypeScroll');
+  const types = [
+    {icon: '👤', label: 'Account'},
+    {icon: '⭐', label: 'Stats'},
+    {icon: '🎁', label: 'Coupon'},
+    {icon: '💸', label: 'Transfer'},
+    {icon: '⬆️', label: 'Upgrade'},
+    {icon: '🔔', label: 'Notifications'},
+    {icon: '📊', label: 'System'},
+  ];
+  scroll.innerHTML = types.map(t =>
+    '<div class="media-type-card" style="min-width:80px">' +
+    '<div class="media-type-icon">' + t.icon + '</div>' +
+    '<div class="media-type-label">' + t.label + '</div></div>'
+  ).join('');
+}
+
+function renderVipLevels() {
+  if (!SERVICE_CONFIG || !SERVICE_CONFIG.vipLevels) return;
+  const container = $('vipLevels');
+  container.innerHTML = '';
+  Object.entries(SERVICE_CONFIG.vipLevels).forEach(([level, cfg]) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'flex:1;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;text-align:center;cursor:pointer;font-size:11px';
+    card.innerHTML = '<div style="font-weight:600;color:var(--accent)">' + level + '</div>' +
+      '<div style="color:var(--fg2);margin-top:4px">$' + cfg.price + '</div>' +
+      '<div style="color:var(--green)">+' + cfg.giftPalance + ' pts</div>' +
+      '<div style="color:var(--fg3)">' + cfg.freeDays + ' days</div>';
+    card.onclick = () => {
+      SELECTED_VIP_LEVEL = level;
+      container.querySelectorAll('div').forEach(d => d.style.borderColor = 'var(--border)');
+      card.style.borderColor = 'var(--accent)';
+      $('upgradeProofSection').style.display = 'block';
+    };
+    container.appendChild(card);
+  });
+}
+
+function renderPaymentMethods() {
+  if (!SERVICE_CONFIG || !SERVICE_CONFIG.paymentMethods) return;
+  const container = $('paymentMethods');
+  container.innerHTML = '';
+  Object.entries(SERVICE_CONFIG.paymentMethods).forEach(([method, cfg]) => {
+    const badge = document.createElement('div');
+    badge.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer';
+    badge.textContent = method;
+    badge.onclick = () => {
+      SELECTED_PAYMENT_METHOD = method;
+      container.querySelectorAll('div').forEach(d => d.style.borderColor = 'var(--border)');
+      badge.style.borderColor = 'var(--accent)';
+    };
+    container.appendChild(badge);
+  });
+}
+
+// Load user info
+async function loadUserInfo() {
+  try {
+    const r = await fetch(BACKEND_URL + '/api/service/user/' + SERVICE_DEVICE_ID);
+    const user = await r.json();
+    window.SERVICE_USER = user;
+    $('userName').textContent = user.userName || 'User';
+    $('userPalance').textContent = user.userPalance || 0;
+    $('userPhone').textContent = user.userPhone || '—';
+    $('userGmail').textContent = user.userGmail || '—';
+    $('userId').textContent = user.userId || SERVICE_DEVICE_ID.substring(0, 12);
+    $('sharingId').textContent = user.sharingId || '—';
+    // Stats badges
+    $('statPalance').textContent = user.userPalance || 0;
+    $('statSubscription').textContent = user.subscriptionType || 'Free';
+    $('statPosts').textContent = user.postsCount || 0;
+    $('statCoupons').textContent = user.couponsCount || 0;
+    $('statApps').textContent = user.appsCount || 0;
+    $('YourPalanceBadge').textContent = user.userPalance || 0;
+  } catch (e) {
+    console.error('User info load failed:', e);
+    $('userName').textContent = 'Offline';
+  }
+}
+
+// Verify coupon
+async function verifyCoupon() {
+  const code = $('inputCopoun').value.trim();
+  if (!code) { toast('Enter coupon code', 'err'); return; }
+  $('verifyBtn').textContent = '⏳';
+  try {
+    const r = await fetch(BACKEND_URL + '/api/service/verify-coupon', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        device_id: SERVICE_DEVICE_ID,
+        coupon_code: code,
+        recipientPhone: $('transferPhone') ? $('transferPhone').value : '',
+        recipientEmail: $('transferGmail') ? $('transferGmail').value : '',
+        recipientUserId: $('transferUserId') ? $('transferUserId').value : '',
+      })
+    });
+    const result = await r.json();
+    showServiceResult('couponResult', result);
+    if (result.success) loadUserInfo(); // Refresh balance
+  } catch (e) {
+    showServiceResult('couponResult', {error: 'Network: ' + e.message});
+  }
+  $('verifyBtn').textContent = '✓';
+}
+
+// Transfer balance
+async function transferBalance() {
+  const amount = parseInt($('requiredPalance').value);
+  const phone = $('transferPhone').value.trim();
+  const email = $('transferGmail').value.trim();
+  const userId = $('transferUserId').value.trim();
+  if (!amount || !phone || !email || !userId) {
+    toast('Fill all fields', 'err'); return;
+  }
+  try {
+    const r = await fetch(BACKEND_URL + '/api/service/transfer', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        sender_device_id: SERVICE_DEVICE_ID,
+        amount: amount,
+        recipientPhone: phone,
+        recipientEmail: email,
+        recipientUserId: userId,
+      })
+    });
+    const result = await r.json();
+    showServiceResult('transferResult', result);
+    if (result.success) loadUserInfo(); // Refresh balance
+  } catch (e) {
+    showServiceResult('transferResult', {error: 'Network: ' + e.message});
+  }
+}
+
+// Submit upgrade
+async function submitUpgrade() {
+  if (!SELECTED_VIP_LEVEL && !$('buyAmountUsd').value) {
+    toast('Select a VIP level or enter USD amount', 'err'); return;
+  }
+  const proofInput = $('proofImage');
+  let proofBase64 = '';
+  if (proofInput.files[0]) {
+    proofBase64 = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.readAsDataURL(proofInput.files[0]);
+    });
+  }
+  try {
+    if (SELECTED_VIP_LEVEL) {
+      // Upgrade
+      const r = await fetch(BACKEND_URL + '/api/service/upgrade', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          device_id: SERVICE_DEVICE_ID,
+          level: SELECTED_VIP_LEVEL,
+          payment_method: SELECTED_PAYMENT_METHOD || '',
+          proof_image_base64: proofBase64,
+          note: $('upgradeNote').value,
+        })
+      });
+      const result = await r.json();
+      showServiceResult('upgradeResult', result);
+    } else {
+      // Buy points
+      const r = await fetch(BACKEND_URL + '/api/service/buy-points', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          device_id: SERVICE_DEVICE_ID,
+          amount_usd: parseFloat($('buyAmountUsd').value),
+          payment_method: SELECTED_PAYMENT_METHOD || '',
+          proof_image_base64: proofBase64,
+          note: $('upgradeNote').value,
+        })
+      });
+      const result = await r.json();
+      showServiceResult('upgradeResult', result);
+    }
+  } catch (e) {
+    showServiceResult('upgradeResult', {error: 'Network: ' + e.message});
+  }
+}
+
+// Load notifications
+async function loadNotifications() {
+  try {
+    const r = await fetch(BACKEND_URL + '/api/service/notifications/' + SERVICE_DEVICE_ID);
+    const data = await r.json();
+    const list = $('notificationsList');
+    if (!data.notifications || data.notifications.length === 0) {
+      list.innerHTML = '<div style="font-size:11px;color:var(--fg2);text-align:center;padding:10px">No notifications</div>';
+      return;
+    }
+    list.innerHTML = data.notifications.map(n =>
+      '<div style="background:var(--bg);border-radius:6px;padding:8px;margin-bottom:6px;font-size:12px">' +
+      '<div style="font-weight:600">' + (n.icon || '🔔') + ' ' + (n.title || 'Notification') + '</div>' +
+      '<div style="color:var(--fg2);margin-top:4px">' + (n.body || '') + '</div>' +
+      '<div style="color:var(--fg3);font-size:10px;margin-top:4px">' + (n.createdAt || '') + '</div>' +
+      '</div>'
+    ).join('');
+  } catch (e) {
+    console.error('Notifications load failed:', e);
+  }
+}
+
+// Load system stats
+async function loadSystemStats() {
+  try {
+    const r = await fetch(BACKEND_URL + '/api/service/system-stats');
+    const stats = await r.json();
+    $('sysTotalUsers').textContent = stats.totalUsers || 0;
+    $('sysTotalBuilds').textContent = stats.totalBuilds || 0;
+    $('sysTotalApps').textContent = stats.totalApps || 0;
+    $('sysVipCount').textContent = (stats.vip1Count || 0) + (stats.vip2Count || 0) + (stats.vip3Count || 0);
+  } catch (e) {
+    console.error('System stats load failed:', e);
+  }
+}
+
+// Show service result card
+function showServiceResult(elementId, result) {
+  const el = $(elementId);
+  if (result.success) {
+    el.innerHTML =
+      '<div style="background:rgba(63,185,80,.1);border:1px solid var(--green);border-radius:8px;padding:10px">' +
+      '<div style="font-weight:600;color:var(--green)">' + (result.resultTitle || 'Success') + '</div>' +
+      '<div style="color:var(--fg2);font-size:12px;margin-top:4px">' + (result.resultMeta || '') + '</div>' +
+      (result.receivingGiftId ? '<div style="margin-top:8px;font-size:11px">Code: <b style="color:var(--accent)">' + result.receivingGiftId + '</b></div>' : '') +
+      '</div>';
+  } else {
+    el.innerHTML =
+      '<div style="background:rgba(248,81,73,.1);border:1px solid var(--red);border-radius:8px;padding:10px">' +
+      '<div style="font-weight:600;color:var(--red)">Error</div>' +
+      '<div style="color:var(--fg2);font-size:12px;margin-top:4px">' + (result.error || 'Unknown error') + '</div>' +
+      '</div>';
+  }
+  el.style.display = 'block';
+}
+
+// Clear service icon
+function clearServiceIcon() {
+  $('iconPreview').textContent = '👤';
+  $('clearIconBtn').style.display = 'none';
+}
+
+// Init service panel on load
+loadServiceConfig();
+loadUserInfo();
+loadSystemStats();
+loadNotifications();
+// Auto-refresh user info + stats every 60 seconds
+setInterval(() => { loadUserInfo(); loadSystemStats(); }, 60000);
 </script>
 </body>
 </html>
